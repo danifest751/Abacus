@@ -66,6 +66,24 @@ bit-identical to the host reference (`--selftest`). Rates on the CMP 50HX:
 The remaining host cost is the **score hash** (SHA-256 over `n^2` elements per attempt), which bounds
 larger `n`; moving it to the GPU is the next step.
 
+## Multi-miner (pool)
+
+The node handles concurrent connections (`serve_multi`), so it acts as a simple pool: each client
+loops `JOB`/`SUB`. Two CPPminer solo clients against one node:
+
+```
+$ abacus-node --listen 9202 --n 64 --bits 4 &
+$ cppminer ... --node 127.0.0.1:9202 --n 64 --seconds 8 &   # client 1
+$ cppminer ... --node 127.0.0.1:9202 --n 64 --seconds 8 &   # client 2
+client1: found 47 ; client2: found 44
+node:    {"height": 91, "work": 13568, ...}
+```
+
+Two clients grew one chain to 91 blocks. Some found blocks are stale (both clients may mine the same
+height before either submits, and the second `SUB` is rejected on a prev-id mismatch) — expected
+prototype behaviour; a real pool needs per-client difficulty and stale handling. No share accounting
+or payout exists.
+
 ## Not implemented
 
 - **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
