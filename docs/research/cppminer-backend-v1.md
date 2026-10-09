@@ -35,16 +35,33 @@ $ cppminer --algo abacus --backend cuda -d 0 --mock --n 64 --bits 4 --seconds 6
 (per-attempt SHA-256 expansion and score on the CPU at this small `n`); the GPU matmul is a small
 part. Larger `n` or GPU-side expansion/score would shift the balance.
 
+## Solo mining (implemented and verified)
+
+The Abacus node gained a job/submit protocol (`p2p.rs`: `JOB` hands out a preheader template +
+bits; `SUB <hex>` carries nonce + timestamp + C, validated and appended), and `cp_abacus.cu` gained
+a solo client:
+
+```
+$ abacus-node --listen 9201 --n 64 --mine 0 --bits 4 --serve 20 &
+$ cppminer --algo abacus --backend cuda -d 0 --node 127.0.0.1:9201 --n 64 --seconds 6
+[abacus] solo n=64 node=127.0.0.1:9201 jobs=54 found=53 time=6.0s
+# node: {"height": 53, "work": 2432, ...}
+```
+
+CPPminer mined **53 blocks** into the node's chain in 6 s; every accepted block passed the node's
+`k`-challenge Freivalds check. A bug was found and fixed on the way: the client must expand `2*n*n`
+elements once and split into `A, B` (expanding twice produced `A == B`, so `C != A*B`).
+
 ## Not implemented
 
-- **Solo / pool mining.** The Abacus node prototype exposes only a pull-sync protocol
-  (`p2p.rs`), not a job/submit protocol. A solo miner needs the node to hand out a header template
-  + target and accept `(nonce, C)`.
-- GPU-side instance expansion and score hashing (host-side today).
+- **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
+  negotiation or multi-client pool).
+- GPU-side instance expansion and score hashing (host-side today, which bounds the attempt rate at
+  small `n`).
+- The A' memory-hard gather is not wired into the CPPminer path yet.
 
 ## Next
 
-1. Add a **job/submit** message to `abacus-node` (hand out a preheader template + bits; accept a
-   submitted nonce+C and validate).
-2. Add a **solo client** to `cp_abacus.cu` that connects, mines, and submits.
-3. Then the A' memory-hard gather (dataset sync/regen) and a pool.
+1. Pool: share accounting and many miners against one node.
+2. GPU-side expand/score; larger `n`.
+3. A' memory-hard gather in the CPPminer backend.
