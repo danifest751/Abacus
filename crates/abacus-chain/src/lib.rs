@@ -72,6 +72,70 @@ pub fn instance(ph: &[u8], n: usize) -> (Vec<u64>, Vec<u64>) {
     (v[0..n * n].to_vec(), v[n * n..2 * n * n].to_vec())
 }
 
+// ---- candidate A': memory-hard epoch dataset and gathered instance (spec/04) ----
+
+pub const DOM_DS: &[u8] = b"abacus/ds";
+pub const DOM_REF: &[u8] = b"abacus/ref";
+
+/// Sequential, data-dependent dataset: block `u` depends on `u-1` and a data-dependent earlier block,
+/// so a random block is not cheaply recomputable (a miner must store the dataset).
+pub fn build_dataset(epoch_seed: &[u8; 32], nblocks: usize) -> Vec<[u8; 32]> {
+    let mut blocks: Vec<[u8; 32]> = Vec::with_capacity(nblocks);
+    let mut m0 = Vec::new();
+    m0.extend_from_slice(DOM_DS);
+    m0.extend_from_slice(epoch_seed);
+    m0.extend_from_slice(&0u64.to_le_bytes());
+    blocks.push(sha256(&m0));
+    for u in 1..nblocks {
+        let mut mr = Vec::new();
+        mr.extend_from_slice(DOM_REF);
+        mr.extend_from_slice(epoch_seed);
+        mr.extend_from_slice(&(u as u64).to_le_bytes());
+        let mut e = [0u8; 8];
+        e.copy_from_slice(&sha256(&mr)[0..8]);
+        let r = (u64::from_le_bytes(e) % u as u64) as usize;
+        let mut m = Vec::new();
+        m.extend_from_slice(DOM_DS);
+        m.extend_from_slice(epoch_seed);
+        m.extend_from_slice(&(u as u64).to_le_bytes());
+        m.extend_from_slice(&blocks[u - 1]);
+        m.extend_from_slice(&blocks[r]);
+        blocks.push(sha256(&m));
+    }
+    blocks
+}
+
+pub fn field_from_block(block: &[u8; 32]) -> u64 {
+    let mut e = [0u8; 8];
+    e.copy_from_slice(&block[0..8]);
+    u64::from_le_bytes(e) % P
+}
+
+pub fn expand_indices(seed: &[u8], count: usize, nblocks: usize) -> Vec<usize> {
+    expand(seed, count).into_iter().map(|x| (x as usize) % nblocks).collect()
+}
+
+/// Gathered instance: `A` and `B` are assembled from header-random dataset blocks.
+pub fn instance_hard(ph: &[u8], n: usize, dataset: &[[u8; 32]]) -> (Vec<u64>, Vec<u64>) {
+    let mut m = Vec::new();
+    m.extend_from_slice(DOM_INSTANCE);
+    m.extend_from_slice(ph);
+    let seed = sha256(&m);
+    let total = n * n;
+    let idx = expand_indices(&seed, 2 * total, dataset.len());
+    let a = (0..total).map(|i| field_from_block(&dataset[idx[i]])).collect();
+    let b = (total..2 * total).map(|i| field_from_block(&dataset[idx[i]])).collect();
+    (a, b)
+}
+
+/// Instance used by the PoW: gathered when a dataset is present, else expanded from the seed.
+pub fn instance_with(ph: &[u8], n: usize, dataset: Option<&[[u8; 32]]>) -> (Vec<u64>, Vec<u64>) {
+    match dataset {
+        Some(ds) => instance_hard(ph, n, ds),
+        None => instance(ph, n),
+    }
+}
+
 pub fn encode_c(c: &[u64]) -> Vec<u8> {
     let mut v = Vec::with_capacity(c.len() * 8);
     for &x in c {
@@ -122,10 +186,11 @@ pub fn mine(
     prev: &[u8; 32],
     timestamp: u64,
     max_attempts: u64,
+    dataset: Option<&[[u8; 32]]>,
 ) -> Option<(u64, Vec<u64>, [u8; 32])> {
     for nonce in 0..max_attempts {
         let ph = preheader(chain_id, version, height, prev, timestamp, nonce);
-        let (a, b) = instance(&ph, profile.n);
+        let (a, b) = instance_with(&ph, profile.n, dataset);
         let c = matmul(&a, &b, profile.n);
         let sc = score(&ph, &c);
         if accept(&sc, profile.bits) {
@@ -135,14 +200,14 @@ pub fn mine(
     None
 }
 
-pub fn verify(profile: &Profile, ph: &[u8], c: &[u64], sc: &[u8; 32]) -> bool {
+pub fn verify(profile: &Profile, ph: &[u8], c: &[u64], sc: &[u8; 32], dataset: Option<&[[u8; 32]]>) -> bool {
     if !accept(sc, profile.bits) {
         return false;
     }
     if &score(ph, c) != sc {
         return false;
     }
-    let (a, b) = instance(ph, profile.n);
+    let (a, b) = instance_with(ph, profile.n, dataset);
     verify_fs(&a, &b, c, profile.n, profile.k)
 }
 
@@ -163,11 +228,18 @@ pub struct Chain {
     pub chain_id: [u8; 32],
     pub version: u32,
     pub blocks: Vec<Block>,
+    pub dataset: Option<Vec<[u8; 32]>>,
 }
 
 impl Chain {
     pub fn new(profile: Profile, chain_id: [u8; 32], version: u32) -> Self {
-        Chain { profile, chain_id, version, blocks: Vec::new() }
+        Chain { profile, chain_id, version, blocks: Vec::new(), dataset: None }
+    }
+
+    /// Attach a memory-hard epoch dataset (candidate A'); the instance becomes gathered.
+    pub fn with_dataset(mut self, dataset: Vec<[u8; 32]>) -> Self {
+        self.dataset = Some(dataset);
+        self
     }
 
     pub fn tip(&self) -> [u8; 32] {
@@ -208,7 +280,7 @@ impl Chain {
         let height = self.height();
         let prev = self.tip();
         let p = Profile { n: self.profile.n, k: self.profile.k, bits };
-        let (nonce, c, sc) = mine(&p, &self.chain_id, self.version, height, &prev, timestamp, max_attempts)?;
+        let (nonce, c, sc) = mine(&p, &self.chain_id, self.version, height, &prev, timestamp, max_attempts, self.dataset.as_deref())?;
         let ph = preheader(&self.chain_id, self.version, height, &prev, timestamp, nonce);
         let id = block_id(&ph, &c);
         let block = Block { height, prev, timestamp, nonce, c, score: sc, id, bits };
@@ -225,7 +297,7 @@ impl Chain {
             return false;
         }
         let p = Profile { n: self.profile.n, k: self.profile.k, bits: block.bits };
-        if !verify(&p, &ph, &block.c, &block.score) {
+        if !verify(&p, &ph, &block.c, &block.score, self.dataset.as_deref()) {
             return false;
         }
         self.blocks.push(block);

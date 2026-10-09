@@ -9,7 +9,7 @@ fn mine_one(bits: u32) -> (Profile, Vec<u8>, Vec<u64>, [u8; 32]) {
     let p = profile(bits);
     let chain = [7u8; 32];
     let prev = [0u8; 32];
-    let (nonce, c, sc) = mine(&p, &chain, 1, 0, &prev, 0, 100_000).expect("mined");
+    let (nonce, c, sc) = mine(&p, &chain, 1, 0, &prev, 0, 100_000, None).expect("mined");
     let ph = preheader(&chain, 1, 0, &prev, 0, nonce);
     (p, ph, c, sc)
 }
@@ -18,21 +18,38 @@ fn mine_one(bits: u32) -> (Profile, Vec<u8>, Vec<u64>, [u8; 32]) {
 fn mines_and_verifies() {
     let (p, ph, c, sc) = mine_one(8);
     assert!(accept(&sc, 8));
-    assert!(verify(&p, &ph, &c, &sc));
+    assert!(verify(&p, &ph, &c, &sc, None));
 }
 
 #[test]
 fn rejects_tampered_product() {
     let (p, ph, mut c, sc) = mine_one(8);
     c[0] = (c[0] + 1) % P;
-    assert!(!verify(&p, &ph, &c, &sc));
+    assert!(!verify(&p, &ph, &c, &sc, None));
 }
 
 #[test]
 fn rejects_wrong_score() {
     let (p, ph, c, mut sc) = mine_one(8);
     sc[0] ^= 0xFF;
-    assert!(!verify(&p, &ph, &c, &sc));
+    assert!(!verify(&p, &ph, &c, &sc, None));
+}
+
+#[test]
+fn memory_hard_gather_roundtrip_and_domain_separation() {
+    use abacus_chain::{build_dataset, verify};
+    let p = Profile { n: 4, k: 4, bits: 6 };
+    let ds = build_dataset(&[9u8; 32], 512);
+    // deterministic dataset
+    assert_eq!(ds, build_dataset(&[9u8; 32], 512));
+    assert_ne!(ds, build_dataset(&[10u8; 32], 512));
+
+    let mut chain = Chain::new(p, [1u8; 32], 1).with_dataset(ds.clone());
+    let b = chain.mine_next(10, 1_000_000).expect("mined (hard)");
+    let ph = preheader(&chain.chain_id, 1, b.height, &b.prev, b.timestamp, b.nonce);
+    assert!(verify(&p, &ph, &b.c, &b.score, Some(&ds)));
+    // The same block must not verify against the plain (non-gathered) instance.
+    assert!(!verify(&p, &ph, &b.c, &b.score, None));
 }
 
 #[test]

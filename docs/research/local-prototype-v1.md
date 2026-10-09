@@ -11,6 +11,9 @@ mine and verify a chain of blocks. No P2P, mempool, transactions or coin.
   `score = SHA-256(domain_score || preheader || encode(C))`; a block is valid when `score < target`
   and the `k` Fiat–Shamir-bound Freivalds challenges accept `C` (ADR 0004).
 - **Chain**: append blocks; validate height, prev id, block id, score/target and Freivalds.
+- **Optional memory-hard A'**: when a dataset is attached (`Chain::with_dataset`), `A, B` are
+  **gathered** from the epoch dataset (spec/04) instead of expanded from the seed; the verifier must
+  hold the dataset. The same block does not verify against the plain instance (tested).
 
 ## Prototype profile
 
@@ -39,8 +42,6 @@ Mined a 5-block local chain; every block verified (`verify` = score/target + Fre
 - **Retarget**: difficulty is fixed in the prototype (the plan requires an ancestor-derived retarget;
   the work model is `(2^D/T) * c*n^omega`).
 - **Fork choice**: single chain here (greatest-cumulative-work is specified, not exercised).
-- **Memory-hard A' layer**: this prototype is the plain compute-bound A. Wiring the gather layer
-  (spec/04) into the prototype is the next step.
 - **GPU miner**: only benches (`cuda/`), not a production miner.
 
 ## Next

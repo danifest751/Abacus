@@ -19,7 +19,7 @@ fn main() {
         let b = chain.mine_next(ts, 10_000_000).expect("mined");
         let dt = t0.elapsed().as_secs_f64();
         let ph = preheader(&chain.chain_id, chain.version, b.height, &b.prev, b.timestamp, b.nonce);
-        let ok = verify(&Profile { n: profile.n, k: profile.k, bits: b.bits }, &ph, &b.c, &b.score);
+        let ok = verify(&Profile { n: profile.n, k: profile.k, bits: b.bits }, &ph, &b.c, &b.score, None);
         println!(
             "  {{\"height\": {}, \"nonce\": {}, \"bits\": {}, \"seconds\": {dt:.4}, \"verified\": {ok}}}{}",
             b.height, b.nonce, b.bits, if i + 1 == wanted { "" } else { "," }
