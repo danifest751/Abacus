@@ -2,7 +2,7 @@
 
 This is the field used by modern STARK/FRI provers (and by Poseidon2 over Goldilocks). Its prime
 has 2-adicity 32, so it supports NTT/FFT sizes up to ``2**32`` — the reason the NTT/STARK
-candidate in this laboratory uses Goldilocks rather than the smaller ``2**61 - 1`` matmul field.
+candidate in this laboratory, and by the matmul/Freivalds laboratory (candidate A).
 
 Generator: ``7``. ``P - 1 = 2**32 * (2**32 - 1)``, so ``7 ** ((P - 1) >> k)`` is a primitive
 ``2**k``-th root of unity.

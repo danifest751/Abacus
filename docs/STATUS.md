@@ -6,8 +6,8 @@ English is primary.
 
 ## Implemented
 
-- Transparent Python reference verifier: Freivalds matrix-product verification modulo
-  `P = 2**61 - 1`, with field helpers, `matmul`, `matvec` and a deterministic RNG.
+- Transparent Python reference verifier: Freivalds matrix-product verification over Goldilocks
+  (`P = 2**64 - 2**32 + 1`), with field helpers, `matmul`, `matvec` and a deterministic RNG.
 - Independent Rust verifier (`crates/abacus-verifier`) with explicit bounds, `u128` products and
   unit tests; a self-test binary and a stdin/stdout differential adapter.
 - Deterministic Python/Rust differential corpus (64 cases, mixed true/tampered) plus Python

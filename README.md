@@ -17,7 +17,7 @@ negative result is a valid outcome.
 ## Implemented
 
 - **Verifiers** in Python and Rust, built independently and checked against each other: `Freivalds`
-  matrix-product verification over `P = 2**61 - 1`; the Goldilocks field; NTT; the sumcheck protocol;
+  matrix-product verification over the Goldilocks field; NTT; the sumcheck protocol;
   SHA-256; and `k`-challenge Fiat-Shamir-bound Freivalds (ADR 0004).
 - **Chain prototype** (`crates/abacus-chain`): mine and verify blocks; bit-count difficulty; an
   ancestor-derived retarget; greatest-cumulative-work fork choice; and an optional **memory-hard A'**

@@ -5,7 +5,7 @@ No consensus, difficulty or network is specified here.
 
 ## 1. Field and objects
 
-- Field: residues modulo `P = 2**61 - 1`, a prime. All arithmetic is modulo `P`.
+- Field: residues modulo Goldilocks `P = 2**64 - 2**32 + 1`, a prime. All arithmetic is modulo `P`.
 - Matrix: row-major `n x n` array of residues.
 - Vector: length-`n` array of residues.
 - A **claim** is a tuple `(A, B, C)` where the prover asserts `C = A * B (mod P)`.

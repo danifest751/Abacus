@@ -1,6 +1,6 @@
 """Abacus research laboratory — transparent Python reference verifier.
 
-Field: arithmetic modulo ``P = 2**61 - 1`` (a prime). Matrices are row-major ``n x n`` lists of
+Field: arithmetic modulo Goldilocks ``P = 2**64 - 2**32 + 1`` (a prime). Matrices are row-major ``n x n`` lists of
 residues. The verifier implements **Freivalds' algorithm**: given a claimed product ``C`` of
 ``A`` and ``B``, it checks ``A @ (B @ r) == C @ r`` for a random vector ``r`` (``O(n**2)`` instead
 of ``O(n**3)``). It tests the *result*, not that a miner did the work.
@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from typing import List, Sequence
 
-P = 2**61 - 1  # prime
+P = 0xFFFFFFFF00000001  # 2**64 - 2**32 + 1 (Goldilocks), prime
 
 Matrix = List[int]
 Vector = List[int]

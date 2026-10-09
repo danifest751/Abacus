@@ -1,6 +1,6 @@
 //! Abacus research laboratory — independent verifier.
 //!
-//! Field: arithmetic modulo `P = 2^61 - 1` (a prime). All products use `u128` so there is no
+//! Field: arithmetic modulo Goldilocks `P = 2^64 - 2^32 + 1` (a prime). All products use `u128` so there is no
 //! silent overflow; every public entry point works on row-major `n x n` matrices of residues.
 //!
 //! The verifier implements **Freivalds' algorithm**: given a claimed product `C` of `A` and `B`,
@@ -15,8 +15,9 @@ pub mod ntt;
 pub mod sha256;
 pub mod sumcheck;
 
-/// The field modulus of the matmul laboratory: `2^61 - 1`, prime.
-pub const P: u64 = 2305843009213693951;
+/// The field modulus of the matmul laboratory: Goldilocks `2^64 - 2^32 + 1` (shared with the NTT
+/// candidate and with the CPPminer Quantus arithmetic for reuse). Prime.
+pub const P: u64 = goldilocks::P;
 
 /// Reduce a `u128` modulo `P`.
 #[inline]
