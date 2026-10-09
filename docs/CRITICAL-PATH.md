@@ -106,6 +106,8 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **A8** (ADR 0012, 0013): ~78 TMAC/s exact int8 on tensor cores. Test 1: a per-attempt succinct
   commitment to `C` costs more than the product, so the single-GEMM form is stopped; escapes E1/E2 are
   open hypotheses.
+- **Candidate T (ADR 0015, spec/07)** is the primary PoW candidate: deep requantized int8 network,
+  row-piece tickets verified by recomputing one row; first test passed (`tnet-v1`).
 - **Second track (ADR 0014)**: interactive proof of tensor throughput (spec/06), outside the PoW
   question by owner decision; the PoW results are written up in `docs/papers/tensor-pow-limits.md`.
 - **Answer to §1**: `docs/ASSESSMENT.md` — yes at the construction level, but the linear algebra adds

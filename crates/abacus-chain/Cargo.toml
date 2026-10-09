@@ -27,3 +27,7 @@ path = "src/bin/abacus-vectors.rs"
 [[bin]]
 name = "abacus-block-bench"
 path = "src/bin/abacus-block-bench.rs"
+
+[[bin]]
+name = "abacus-tnet"
+path = "src/bin/abacus-tnet.rs"

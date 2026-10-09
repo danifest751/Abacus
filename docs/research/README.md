@@ -6,6 +6,7 @@ its source hashes and environment.
 
 | Topic | Current note | Superseded / withdrawn |
 |---|---|---|
+| **Candidate T: deep requantized int8 network PoW (ADR 0015)** | [tnet-v1](tnet-v1.md) | — |
 | int8 tensor-core matmul (candidate A8) | [int8-matmul-v1](int8-matmul-v1.md) | — |
 | A8 succinct-proof cost (test 1) | [a8-proof-cost-v1](a8-proof-cost-v1.md) | — |
 | A8 escape E1 (winner-only STARK of the hash) | [e1-hash-proof-v1](e1-hash-proof-v1.md) | — |

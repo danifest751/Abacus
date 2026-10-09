@@ -13,6 +13,7 @@ use abacus_verifier::{freivalds_fs::verify_fs, matmul, sha256::sha256, P};
 use std::sync::Arc;
 
 pub mod p2p;
+pub mod tnet;
 
 pub const DOM_INSTANCE: &[u8] = b"abacus/instance";
 pub const DOM_SCORE: &[u8] = b"abacus/score";

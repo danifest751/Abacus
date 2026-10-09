@@ -98,6 +98,15 @@ Assessed against the evidence here:
 does useless work, and the useful-work variant runs straight into the unsolved anchor problem. It
 is a legitimate *hypothesis* for direction 2 below, with the six obstacles above as its falsifiers.
 
+## Update: candidate T (ADR 0015)
+
+Following the owner's goal of a PoW coin, candidate T applies the lessons above: tickets are pieces
+of output rows of a header-seeded int8 network (verified by recomputing one row, no proof, no
+grindable data, nonlinear requantization between layers). First measurement: 87.8% of an attempt on
+tensor cores, 31 ms CPU verification, no cheaper ticket path found (`tnet-v1`). Its distinguishing
+claim — the best miner is general AI inference hardware — still needs the precomputation and
+fixed-function analyses of spec/07 §4.
+
 ## What would change the answer
 
 Pick one distinguishing property and test it; stop if none survives.

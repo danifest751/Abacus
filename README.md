@@ -9,6 +9,9 @@ English is the primary repository language.
 
 ## Where this stands
 
+- **Candidate T** — the current PoW candidate (`spec/07`, ADR 0015): a header-seeded int8 network on
+  tensor cores whose output-row pieces are lottery tickets; a block is verified by recomputing one row
+  (31 ms on a CPU); 87.8% of a mining attempt runs on tensor cores (`docs/research/tnet-v1.md`).
 - **Candidate A** — header-bound Freivalds matmul PoW (`spec/03`): sound and implementable. The
   instance comes from the block header, so there is no screening or reuse; Fiat–Shamir Freivalds
   verification errs with probability `<= 2^-63` per challenge; a full block check costs ~19 ms at
@@ -53,11 +56,11 @@ spec/        specifications (lab, sumcheck/NTT, candidate A, candidate A')
 reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset)
 crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner),
              abacus-attest (tensor-throughput attestation: verifier, reference prover)
-cuda/        GPU benches (Goldilocks and int8 matmul, NTT, gathered reads, A' attempt) and the
-             attestation prover
+cuda/        GPU benches (Goldilocks and int8 matmul, NTT, gathered reads, A' attempt, candidate T)
+             and the attestation prover
 scripts/     check gate, GPU suite, probes
 tests/       Python tests incl. Python/Rust differential and parity
-docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0014), research record,
+docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0015), research record,
              papers
 ```
 
@@ -68,8 +71,9 @@ docs/        assessment, critical path, status, threat model, decisions (ADR 000
   · [Review guide](docs/REVIEW.md) · [Research plan](01-ABACUS-RESEARCH-PLAN.md)
 - Specifications: [`spec/01`](spec/01-abacus-lab-v1.md), [`spec/02`](spec/02-sumcheck-ntt-v1.md),
   [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md),
-  [`spec/05`](spec/05-int8-matmul-pow.md), [`spec/06`](spec/06-tensor-throughput-attestation.md).
-- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0014). Research record:
+  [`spec/05`](spec/05-int8-matmul-pow.md), [`spec/06`](spec/06-tensor-throughput-attestation.md),
+  [`spec/07`](spec/07-deep-int8-network-pow.md).
+- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0015). Research record:
   [`docs/research/`](docs/research/README.md).
 
 ## Scope boundary

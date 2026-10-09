@@ -1,11 +1,16 @@
 # Research status
 
-Date: 2026-10-09. Phase: the PoW line is assessed (`docs/ASSESSMENT.md`, ADR 0013) and written up
-(`docs/papers/tensor-pow-limits.md`); the active track is an interactive proof of tensor throughput
-(ADR 0014, spec/06).
+Date: 2026-10-09. Phase: the primary PoW candidate is **candidate T** (ADR 0015, spec/07), a deep
+requantized int8 network with row-piece tickets; it passed its first test. Side track: interactive
+tensor-throughput attestation (ADR 0014). Earlier PoW findings: `docs/papers/tensor-pow-limits.md`.
 
 ## Results
 
+- **Candidate T (spec/07)**: per attempt `L` layers of int8 GEMM + fixed-point requantization with
+  epoch weights; tickets are pieces of output rows; a block carries `(nonce, i, c)` and is verified by
+  recomputing one row. Measured (`tnet-v1`): 87.8% of an attempt on tensor cores at `n = 8192, L = 8`
+  (59 TMAC/s), CPU verification 31 ms (8 threads), single-row mining 42–45x more expensive per
+  ticket, fair lottery, GPU/Rust byte parity.
 - **Candidate A (spec/03)** is a sound permissionless PoW at the construction level: header-derived
   instance (no screening, no reuse), Fiat–Shamir Freivalds verification with per-challenge error
   `<= 2^-63` (ADR 0009); a full block check takes ~19 ms at `n = 256` on one CPU core, about 1/5 of a
@@ -55,6 +60,9 @@ Date: 2026-10-09. Phase: the PoW line is assessed (`docs/ASSESSMENT.md`, ADR 001
 - By scope: no coin, rewards, transactions, signatures, gossip or external testnet.
 
 ## Next
+
+Candidate T (ADR 0015): fuse requantization into the GEMM epilogue, analyse precomputation on epoch
+weights, then wire T into the chain prototype and CPPminer.
 
 Attestation (ADR 0014): a cheaper expansion PRF to tighten the certified rate, sustained-throughput
 schedules, and a literature check against GPU-telemetry puzzles. Write-up: external review of
