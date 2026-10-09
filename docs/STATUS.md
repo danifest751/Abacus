@@ -20,6 +20,8 @@ English is primary.
 - A toy CPU mine-and-verify loop (`scripts/mine_sim.py`).
 - A **minimal local prototype** (`crates/abacus-chain`): mine and verify a chain of blocks; a 5-block
   local run verified end to end (`docs/research/local-prototype-v1.md`). No P2P, mempool or coin.
+- A **multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync, greatest-work adoption,
+  reorg rollback; a 3-process demo converges (`docs/research/multi-node-testnet-v1.md`), the E6 gate.
 - ASIC posture and the memory-hard candidate A' (ADR 0007); gather-bandwidth probe on the CMP
   (`docs/research/gather-bandwidth-v1.md`).
 - Candidate A' spec (memory-hard: epoch dataset + gathered operands), a dataset module

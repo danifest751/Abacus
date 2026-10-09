@@ -101,3 +101,6 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **Next**: (1) cross-language FS differential (adapter); (2) a GPU *attempt* kernel for a matched
   CPU/GPU mine-scope (D5) at a chosen profile; (3) finalise the `(n, D, k)` profile; then decide on a
   minimal testnet prototype. Candidate A is currently a **positive** result.
+- **E6 done**: a multi-node P2P prototype (pull sync, greatest-cumulative-work adoption, reorg rollback)
+  plus a memory-hard A' sync test; a 3-process demo converges
+  (`docs/research/multi-node-testnet-v1.md`, `crates/abacus-chain`).

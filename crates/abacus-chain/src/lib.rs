@@ -225,6 +225,7 @@ pub struct Block {
     pub bits: u32,
 }
 
+#[derive(Clone)]
 pub struct Chain {
     pub profile: Profile,
     pub chain_id: [u8; 32],

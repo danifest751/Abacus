@@ -61,3 +61,44 @@ fn sync_ignores_shorter_chain() {
     assert_eq!(adopted, 0);
     assert_eq!(a.height(), 4);
 }
+
+#[test]
+fn reorg_adopts_longer_branch() {
+    // Common prefix of 2 blocks, shared by both nodes.
+    let mut prefix = Chain::new(profile(), [3u8; 32], 1);
+    for i in 0..2u64 {
+        prefix.mine_next((i + 1) * 10, 1_000_000).unwrap();
+    }
+    let mut a = prefix.clone();
+    let mut b = prefix.clone();
+    // Diverge: A extends by 2, B by 3 (different timestamps -> different instances).
+    for i in 2..4u64 {
+        a.mine_next((i + 1) * 10 + 1, 1_000_000).unwrap();
+    }
+    for i in 2..5u64 {
+        b.mine_next((i + 1) * 10 + 2, 1_000_000).unwrap();
+    }
+    assert!(b.cumulative_work() > a.cumulative_work());
+
+    let addr = serve_once(b.blocks.clone());
+    let n = p2p::sync_from(&mut a, &addr.to_string()).unwrap();
+    assert!(n >= 5);
+    assert_eq!(a.height(), 5);
+    assert_eq!(a.tip(), b.tip()); // A rolled back its 2 blocks and adopted B's branch
+}
+
+#[test]
+fn sync_memory_hard_chain_with_same_dataset() {
+    use abacus_chain::build_dataset;
+    let p = Profile { n: 4, k: 4, bits: 6 };
+    let ds = build_dataset(&[5u8; 32], 512);
+    let mut a = Chain::new(p, [4u8; 32], 1).with_dataset(ds.clone());
+    for i in 0..2u64 {
+        a.mine_next((i + 1) * 10, 1_000_000).unwrap();
+    }
+    let addr = serve_once(a.blocks.clone());
+    let mut b = Chain::new(p, [4u8; 32], 1).with_dataset(ds.clone());
+    let n = p2p::sync_from(&mut b, &addr.to_string()).unwrap();
+    assert!(n >= 2);
+    assert_eq!(b.tip(), a.tip());
+}
