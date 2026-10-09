@@ -11,7 +11,7 @@ import subprocess
 
 import pytest
 
-from reference import chain, sumcheck
+from reference import chain, int8, sumcheck
 from reference.chain import sha256
 from reference.freivalds import matmul
 
@@ -67,6 +67,13 @@ def test_chain_derivations_match_rust(case):
     ha, hb = chain.instance_hard(ph, n, ds)
     assert _dec(rust["hard_a"]) == ha and _dec(rust["hard_b"]) == hb
     assert rust["hard_score"] == chain.score(ph, matmul(ha, hb, n)).hex()
+
+    ia, ib = int8.instance_i8(ph, n)
+    ic = int8.matmul_i8(ia, ib, n)
+    assert _dec(rust["i8_a"]) == ia and _dec(rust["i8_b"]) == ib and _dec(rust["i8_c"]) == ic
+    assert rust["i8_score"] == int8.score_i8(ph, ic).hex()
+    assert _dec(rust["i8_fs"]) == [x for v in int8.fs_challenges_i8(ph, ic, n, k) for x in v]
+    assert int8.verify_fs_i8(ph, ia, ib, ic, n, k)
 
     table = chain.expand(ph, 16)
     claimed, rounds = sumcheck.prove(table, 4)

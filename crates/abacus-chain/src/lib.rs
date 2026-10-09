@@ -92,6 +92,61 @@ pub fn instance(ph: &[u8], n: usize) -> (Vec<u64>, Vec<u64>) {
     (v[0..n * n].to_vec(), v[n * n..2 * n * n].to_vec())
 }
 
+// ---- candidate A8: int8 instance, exact int32 product (spec/05, ADR 0012) ----
+
+pub const DOM_INSTANCE_I8: &[u8] = b"abacus/instance-i8";
+pub const DOM_SCORE_I8: &[u8] = b"abacus/score-i8";
+
+/// SHA-256 counter-mode byte stream: `SHA256("abacus/expand" || seed || LE32(i))`, 32 bytes per hash.
+pub fn expand_bytes(seed: &[u8], count: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(count + 32);
+    let mut c: u32 = 0;
+    while out.len() < count {
+        let mut m = Vec::with_capacity(DOM_EXPAND.len() + seed.len() + 4);
+        m.extend_from_slice(DOM_EXPAND);
+        m.extend_from_slice(seed);
+        m.extend_from_slice(&c.to_le_bytes());
+        out.extend_from_slice(&sha256(&m));
+        c += 1;
+    }
+    out.truncate(count);
+    out
+}
+
+/// int8 instance: `seed = SHA256("abacus/instance-i8" || preheader)`; `2 n^2` bytes from `expand_bytes`
+/// read as two's-complement `i8`, the first `n^2` are `A`, the next `n^2` are `B` (row-major).
+pub fn instance_i8(ph: &[u8], n: usize) -> (Vec<i8>, Vec<i8>) {
+    let mut m = Vec::with_capacity(DOM_INSTANCE_I8.len() + ph.len());
+    m.extend_from_slice(DOM_INSTANCE_I8);
+    m.extend_from_slice(ph);
+    let seed = sha256(&m);
+    let bytes = expand_bytes(&seed, 2 * n * n);
+    let v: Vec<i8> = bytes.into_iter().map(|x| x as i8).collect();
+    (v[..n * n].to_vec(), v[n * n..].to_vec())
+}
+
+/// `SHA256("abacus/score-i8" || preheader || C)` with `C` as little-endian `i32`.
+pub fn score_i8(ph: &[u8], c: &[i32]) -> [u8; 32] {
+    let mut m = Vec::with_capacity(DOM_SCORE_I8.len() + ph.len() + c.len() * 4);
+    m.extend_from_slice(DOM_SCORE_I8);
+    m.extend_from_slice(ph);
+    m.extend_from_slice(&abacus_verifier::int8::encode_c_i32(c));
+    sha256(&m)
+}
+
+/// Stateless PoW check of an A8 block: shape, target, score and Fiat–Shamir Freivalds over `F_P`.
+pub fn verify_i8(profile: &Profile, ph: &[u8], c: &[i32], sc: &[u8; 32]) -> bool {
+    use abacus_verifier::int8::{verify_fs_i8, MAX_N};
+    if profile.bits > MAX_BITS || profile.n > MAX_N || profile.n.checked_mul(profile.n) != Some(c.len()) {
+        return false;
+    }
+    if !accept(sc, profile.bits) || &score_i8(ph, c) != sc {
+        return false;
+    }
+    let (a, b) = instance_i8(ph, profile.n);
+    verify_fs_i8(ph, &a, &b, c, profile.n, profile.k)
+}
+
 // ---- candidate A': memory-hard epoch dataset and gathered instance (spec/04) ----
 
 pub const DOM_DS: &[u8] = b"abacus/ds";

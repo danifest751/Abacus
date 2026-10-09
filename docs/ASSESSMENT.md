@@ -102,10 +102,11 @@ is a legitimate *hypothesis* for direction 2 below, with the six obstacles above
 
 Pick one distinguishing property and test it; stop if none survives.
 
-1. **GPU affinity with an ASIC barrier (A').** Fix a large-slice nonlinear profile; run D5 (matched
-   CPU, energy x time) and an HBM GPU; write an ASIC cost model; analyse the dataset's time–memory
-   trade-offs. Success means a measured, defensible advantage over Ethash-class designs, not over a
-   naive CPU.
+1. **Work on general-purpose AI hardware (A8, chosen — ADR 0012).** Use int8 tensor-core matmul so
+   that the best mining hardware is AI hardware rather than a single-purpose ASIC. First result: ~78
+   TMAC/s exact on the CMP 50HX (~440x the Goldilocks kernel); blocker: the commitment to and transfer
+   of `C`, which needs a succinct argument (`int8-matmul-v1`). The A' bandwidth route (Ethash-class)
+   is not pursued.
 2. **Useful work.** Accept external matrices (Pearl-style) and design/verify the anchor that restores
    non-reusability. This is the open research problem the project set out to study.
 3. **Proof size.** Replace shipping `C` by a commitment with a sumcheck-based matmul proof; measure

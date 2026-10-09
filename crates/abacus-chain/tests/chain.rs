@@ -223,3 +223,20 @@ fn retarget_boundary_uses_window_minus_one_intervals() {
     }
     assert_eq!(on_target.next_bits(), 3);
 }
+
+#[test]
+fn int8_candidate_verifies_honest_and_rejects_tampered_blocks() {
+    use abacus_chain::{instance_i8, score_i8, verify_i8};
+    use abacus_verifier::int8::matmul_i8;
+    let n = 8;
+    let ph = preheader(&[21u8; 32], 2, 0, &[0u8; 32], 10, 0, 7);
+    let (a, b) = instance_i8(&ph, n);
+    let c = matmul_i8(&a, &b, n);
+    let sc = score_i8(&ph, &c);
+    let p = Profile { n, k: 2, bits: 0 };
+    assert!(verify_i8(&p, &ph, &c, &sc));
+    let mut bad = c.clone();
+    bad[0] += 1;
+    assert!(!verify_i8(&p, &ph, &bad, &score_i8(&ph, &bad)));
+    assert!(!verify_i8(&p, &ph, &c[..10], &sc));
+}

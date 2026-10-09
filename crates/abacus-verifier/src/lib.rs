@@ -11,6 +11,7 @@
 
 pub mod freivalds_fs;
 pub mod goldilocks;
+pub mod int8;
 pub mod ntt;
 pub mod sha256;
 pub mod sumcheck;

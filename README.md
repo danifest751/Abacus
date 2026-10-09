@@ -17,6 +17,9 @@ English is the primary repository language.
   ASIC-friendly; blocks carry `8 n^2` bytes. See **[the assessment](docs/ASSESSMENT.md)**.
 - **Candidate A'** (gathered operands, `spec/04`): bandwidth-bound only with a nonlinear large-slice
   gather, which makes it an Ethash-class bandwidth PoW (ADR 0011).
+- **Candidate A8** — int8 matmul on tensor cores (`spec/05`, ADR 0012), the current line of work: exact
+  products at ~78 TMAC/s on a CMP 50HX (~440x the Goldilocks kernel); it needs a succinct argument for
+  the product before blocks are practical.
 - **Candidates B (NTT/sumcheck) and C (MSM/KZG)**: verifiers only; weaker premises (ADR 0003).
 
 ## What is implemented
@@ -45,10 +48,10 @@ Raw experiment output goes to an ignored `artifacts/`.
 spec/        specifications (lab, sumcheck/NTT, candidate A, candidate A')
 reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset)
 crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner)
-cuda/        GPU benches (matmul, gathered reads, A' attempt)
+cuda/        GPU benches (Goldilocks and int8 matmul, gathered reads, A' attempt)
 scripts/     check gate, GPU suite, probes
 tests/       Python tests incl. Python/Rust differential and parity
-docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0011), research record
+docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0012), research record
 ```
 
 ## Documentation
@@ -57,8 +60,9 @@ docs/        assessment, critical path, status, threat model, decisions (ADR 000
 - [Critical path](docs/CRITICAL-PATH.md) · [Status](docs/STATUS.md) · [Threat model](docs/THREAT-MODEL.md)
   · [Review guide](docs/REVIEW.md) · [Research plan](01-ABACUS-RESEARCH-PLAN.md)
 - Specifications: [`spec/01`](spec/01-abacus-lab-v1.md), [`spec/02`](spec/02-sumcheck-ntt-v1.md),
-  [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md).
-- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0011). Research record:
+  [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md),
+  [`spec/05`](spec/05-int8-matmul-pow.md).
+- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0012). Research record:
   [`docs/research/`](docs/research/README.md).
 
 ## Scope boundary

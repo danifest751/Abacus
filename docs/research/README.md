@@ -6,6 +6,7 @@ its source hashes and environment.
 
 | Topic | Current note | Superseded / withdrawn |
 |---|---|---|
+| int8 tensor-core matmul (candidate A8) | [int8-matmul-v1](int8-matmul-v1.md) | — |
 | GPU matmul, gathered reads, A' attempt folds | [gpu-suite-v1](gpu-suite-v1.md) | [gpu-baseline-v1](gpu-baseline-v1.md) (cold clock), [gather-bandwidth-v1](gather-bandwidth-v1.md) (64 KiB only, single launch), [attempt-rate-v1](attempt-rate-v1.md) (**withdrawn**: linear fold), [attempt-rate-v2](attempt-rate-v2.md) (attack vs naive kernel) |
 | A' balance (gather vs matmul) | [memhard-balance-v2](memhard-balance-v2.md) | [memhard-balance-v1](memhard-balance-v1.md) (bandwidth-only model, cold rate) |
 | Verifier cost | [verifier-throughput-v2](verifier-throughput-v2.md) | [verifier-throughput-v1](verifier-throughput-v1.md) (`k = 128` profile) |

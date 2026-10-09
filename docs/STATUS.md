@@ -1,8 +1,7 @@
 # Research status
 
-Date: 2026-10-09. Phase: construction and prototype complete for candidate A; the central question
-has a written assessment (`docs/ASSESSMENT.md`); the next step is a decision on which distinguishing
-property to test.
+Date: 2026-10-09. Phase: candidate A complete and assessed (`docs/ASSESSMENT.md`); the primary line
+of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
 
 ## Results
 
@@ -15,6 +14,10 @@ property to test.
 - **Candidate A' (spec/04)**: the one-word gather is compute-bound; a nonlinear large-slice gather is
   bandwidth-bound for a tuned miner (ADR 0011), which turns A' into an Ethash-class bandwidth PoW. A
   linear fold is broken by prefix sums (ADR 0010).
+- **Candidate A8 (spec/05)**: exact int8 product on tensor cores, ~78 TMAC/s on the CMP 50HX (~440x
+  the Goldilocks kernel), verified by Freivalds over Goldilocks. Blocker: committing to and shipping
+  `C` costs as much as the product below `n ~ 1500` and is 16–256 MiB where the product dominates; a
+  succinct argument for `C = A * B` is required (`int8-matmul-v1`).
 - **Candidates B and C**: verifiers only; B's verification advantage is a `log n` factor (ADR 0003).
 - Research record and current notes: `docs/research/README.md`.
 
@@ -45,5 +48,6 @@ property to test.
 
 ## Next
 
-Choose one of the three directions in `ASSESSMENT.md` ("What would change the answer") and run its
-experiments; if none yields a property hash-based PoW lacks, publish the neutral result.
+Candidate A8 (ADR 0012): (1) a succinct argument for the committed `C` — the matmul sumcheck with a
+commitment opening — with measured prover overhead and proof size; (2) a matched CPU/AI-hardware
+comparison for int8 (D5). Stop criteria are in ADR 0012.

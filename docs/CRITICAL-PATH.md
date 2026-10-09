@@ -42,6 +42,10 @@ chain. If not, the correct outcome is an **explicit, published negative result**
   - **Status (ADR 0011):** one gathered word per entry is compute-bound; a nonlinear large-slice
     gather is bandwidth-bound for a tuned miner, which makes A' an Ethash-class bandwidth PoW; a linear
     fold is broken by prefix sums (ADR 0010).
+- **A8. int8 tensor-core matmul (ADR 0012, spec/05).** As A, but `A, B` are int8 and the work is the
+  exact int32 product on tensor cores; Freivalds over Goldilocks verifies it.
+  - Falsifiers: commitment/proof cost of `C` vs the product; block size; a single-purpose design
+    beating AI hardware; any sub-`n^3` route for random int8 inputs; linear or sampled scores.
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
   transcript; the verifier checks `O(n)` round values plus one evaluation of the polynomial (sublinear
   only with a commitment opening; the implemented verifier reads the full table).
@@ -99,6 +103,8 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **E6 prototype done** (beyond the minimal D6 simulator of §6): chain, sync and a GPU miner, used to
   validate the construction end to end (`chain-prototype-v2`). It found and fixed consensus bugs
   (ADR 0010) and is frozen.
+- **A8 started** (ADR 0012): ~78 TMAC/s exact int8 on tensor cores; blocked on a succinct argument
+  for `C` (shipping or hashing `C` dominates at practical `n`).
 - **Answer to §1**: `docs/ASSESSMENT.md` — yes at the construction level, but the linear algebra adds
   cost, not security or usefulness; three directions could change that, otherwise publish the neutral
   result.

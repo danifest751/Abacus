@@ -69,6 +69,17 @@ fn main() {
     println!("hard_b={}", dec(&hb));
     println!("hard_score={}", hex(&score(&ph, &hc)));
 
+    // Candidate A8: int8 instance, exact int32 product, score and challenges.
+    let (ia, ib) = instance_i8(&ph, n);
+    let ic = abacus_verifier::int8::matmul_i8(&ia, &ib, n);
+    let as_i64 = |v: &[i8]| v.iter().map(|&x| x as i64).collect::<Vec<i64>>();
+    let deci = |v: &[i64]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
+    println!("i8_a={}", deci(&as_i64(&ia)));
+    println!("i8_b={}", deci(&as_i64(&ib)));
+    println!("i8_c={}", deci(&ic.iter().map(|&x| x as i64).collect::<Vec<_>>()));
+    println!("i8_score={}", hex(&score_i8(&ph, &ic)));
+    println!("i8_fs={}", dec(&abacus_verifier::int8::fs_challenges_i8(&ph, &ic, n, k).concat()));
+
     // Sumcheck over a 16-entry table expanded from the preheader.
     let table = expand(&ph, 16);
     let (claimed, rounds) = sumcheck::prove(&table, 4);
