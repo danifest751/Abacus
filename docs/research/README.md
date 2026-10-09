@@ -7,6 +7,7 @@ its source hashes and environment.
 | Topic | Current note | Superseded / withdrawn |
 |---|---|---|
 | **Candidate T / TNet v1: frozen parameters, verifier, robustness (ADR 0016)** | [tnet-v2](tnet-v2.md) | — |
+| TNet v1 on Ampere (RTX 3090): attempt cost, parity | [tnet-ampere-v1](tnet-ampere-v1.md) | — |
 | Candidate T: first test (ADR 0015) | [tnet-v1](tnet-v1.md) | — (v2 extends it; verification figures superseded by v2) |
 | int8 tensor-core matmul (candidate A8) | [int8-matmul-v1](int8-matmul-v1.md) | — |
 | A8 succinct-proof cost (test 1) | [a8-proof-cost-v1](a8-proof-cost-v1.md) | — |

@@ -109,8 +109,8 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **Candidate T (ADR 0015, spec/07)** is the primary PoW candidate: deep requantized int8 network,
   row-piece tickets verified by recomputing one row; first test passed (`tnet-v1`). **Frozen as TNet v1
   (ADR 0016)**: parameters, claimed piece in the block, vectors; approximation fails and
-  precomputation is bounded (`tnet-v2`). Open: a measured LUT kernel, an int8-GEMM ASIC cost model,
-  a second GPU architecture. Coin engineering continues outside this repository.
+  precomputation is bounded (`tnet-v2`). Second architecture measured (RTX 3090, `tnet-ampere-v1`). Open: a measured LUT kernel, an
+  int8-GEMM ASIC cost model. Coin engineering continues outside this repository.
 - **Second track (ADR 0014)**: interactive proof of tensor throughput (spec/06), outside the PoW
   question by owner decision; the PoW results are written up in `docs/papers/tensor-pow-limits.md`.
 - **Answer to §1**: `docs/ASSESSMENT.md` — yes at the construction level, but the linear algebra adds

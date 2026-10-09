@@ -14,7 +14,8 @@ record. Side track: interactive tensor-throughput attestation (ADR 0014). Earlie
   frozen `n = 8192, L = 8, w = 256` (57.5 TMAC/s), CPU verification 11.5 ms (8 threads) / 16.8 ms
   (1 thread) with a SIMD build, single-row mining 42–45x more expensive per ticket, fair lottery,
   GPU/Rust/Python byte parity, no approximate shortcut (one ±1 error reaches 55% of the final row);
-  precomputation bounded analytically (4–12x slower than tensor cores on the measured GPU).
+  precomputation bounded analytically (4–12x slower than tensor cores on the measured GPU). RTX 3090
+  (Ampere): 159.5 ns per ticket, 86.7% tensor share, parity holds (`tnet-ampere-v1`).
 - **Candidate A (spec/03)** is a sound permissionless PoW at the construction level: header-derived
   instance (no screening, no reuse), Fiat–Shamir Freivalds verification with per-challenge error
   `<= 2^-63` (ADR 0009); a full block check takes ~19 ms at `n = 256` on one CPU core, about 1/5 of a

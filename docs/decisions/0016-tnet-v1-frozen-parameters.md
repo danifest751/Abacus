@@ -42,12 +42,16 @@ goal is a PoW coin, so the construction must be frozen with test vectors before 
   saving; bit-plane tables (group `g`) need `4 · 2^g / g · n^2` bytes per layer and `8 / g` int32 additions
   per original multiply-add — on the measured GPU 4–12x slower than tensor cores from ALU
   throughput alone; in silicon they trade an int8 multiplier for ≥128x weight storage and bandwidth.
+- **Second architecture** (`tnet-ampere-v1`, added the same day): RTX 3090 at the frozen parameters,
+  159.5 ns per ticket (1.83x the CMP 50HX), 86.7% tensor share, single rows 51x per ticket, tickets
+  accepted by Rust byte for byte.
 - **Test vectors**: `spec/vectors/tnet-v1-frozen.jsonl` (frozen parameters, Rust, one row matched to a
   GPU-found ticket) and `tnet-v1-small.jsonl` (`n = 256`, checked against the Python reference).
 
 ## Consequences
 
-- TNet v1 is ready to be specified as a coin's work function. Open, and stated as such: an int8-GEMM
+- TNet v1 is ready to be specified as a coin's work function; the coin is Requant
+  (`danifest751/requant`). Open, and stated as such: an int8-GEMM
   ASIC without general AI features (only its advantage over AI accelerators is unknown, not its
   existence), and light clients (512 MiB and ~11 ms per header, or trust in a full node).
 - Any change to the parameters, the derivations or the requantization is a new version with new

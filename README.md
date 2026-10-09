@@ -12,8 +12,10 @@ English is the primary repository language.
 - **TNet v1 (candidate T)** — the outcome of the PoW research (`spec/07`, ADR 0015/0016): a
   header-seeded int8 network on tensor cores whose output-row pieces are lottery tickets; a block is
   verified by recomputing one row (11–17 ms on a laptop CPU); 88% of a mining attempt runs on tensor
-  cores; parameters and test vectors frozen (`docs/research/tnet-v2.md`, `spec/vectors/`). A coin built
-  on it lives in a separate repository; this repository stays the research record.
+  cores; parameters and test vectors frozen (`docs/research/tnet-v2.md`, `spec/vectors/`), measured on
+  Turing and Ampere GPUs. The coin built on it is **Requant**
+  ([`danifest751/requant`](https://github.com/danifest751/requant)); this repository stays the research
+  record.
 - **Candidate A** — header-bound Freivalds matmul PoW (`spec/03`): sound and implementable. The
   instance comes from the block header, so there is no screening or reuse; Fiat–Shamir Freivalds
   verification errs with probability `<= 2^-63` per challenge; a full block check costs ~19 ms at
