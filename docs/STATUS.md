@@ -20,6 +20,8 @@ English is primary.
 - A toy CPU mine-and-verify loop (`scripts/mine_sim.py`).
 - ASIC posture and the memory-hard candidate A' (ADR 0007); gather-bandwidth probe on the CMP
   (`docs/research/gather-bandwidth-v1.md`).
+- Candidate A' spec (memory-hard: epoch dataset + gathered operands), a dataset module
+  (`reference/memhard_dataset.py`) and a balance probe (`docs/research/memhard-balance-v1.md`).
 - One local check command: `python scripts/check.py`.
 
 The ordinary check gate uses standard libraries; the Rust crate has no third-party dependencies.
