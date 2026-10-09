@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Balance probe for candidate A': gather (memory) vs matmul (compute), spec/04.
+"""Balance probe for candidate A' (gather vs matmul) — corrected.
 
-If the matmul dominates the attempt, the memory-hard layer is cosmetic. This estimates the two
-components under explicit assumptions and reports where they are comparable.
+An earlier version assumed a 1e12 MAC/s tensor-core matmul. That is wrong for this field: Goldilocks
+/ 2^61-1 are 64-bit modular arithmetic, so int8 tensor cores do NOT apply (a small int8-representable
+modulus would be needed). This version uses measured-grounded rates instead.
 
-Assumptions (labelled, not measured here):
-  gathered bandwidth BW_g = 29 GB/s (measured on the CMP; docs/research/gather-bandwidth-v1.md);
-  dataset block = 32 bytes; A has n^2 entries, each a gathered block -> gather bytes = 32*n^2;
-  matmul: n^3 multiplies at a naive rate (44 GMAC/s, measured) and at a tensor-core rate (1e12 MAC/s).
+Rates (CMP 50HX, grounded):
+  gathered bandwidth BW_g = 29 GB/s (measured);
+  Goldilocks field matmul ~44 GMAC/s (measured naive kernel);
+  int8 matmul ~69 GMAC/s (CPPMiner Pearl rate on the CMP, for reference).
+
+For an attempt with `n^3` MACs and `G` gathered bytes:
+  gather_s = G / BW_g ;  matmul_s = n^3 / rate.
+Gather dominates only if G > n^3 * BW_g / rate — a large per-attempt gather (memory-hard PoW is
+inherently bandwidth-bound). With one 32-byte block per `A` entry (G = 32 n^2) the matmul dominates.
 
 Writes JSON to an ignored artifacts/.
 """
@@ -17,44 +23,44 @@ from __future__ import annotations
 import json
 import os
 
-GATHERED_BW = 29e9          # bytes/s (measured, CMP)
-BLOCK = 32                  # bytes per gathered block
-NAIVE_RATE = 44e9           # MAC/s (measured naive GPU kernel)
-TC_RATE = 1e12              # MAC/s (assumed tensor-core)
+BW_G = 29e9          # gathered bytes/s (measured)
+RATE_FIELD = 44e9    # Goldilocks MAC/s (measured naive)
+RATE_INT8 = 69e9     # int8 MAC/s (CPPMiner CMP reference)
+BLOCK = 32           # one dataset block per A entry in the naive design
 
 
-def components(n: int, bw=GATHERED_BW, rate=NAIVE_RATE) -> dict:
-    gather_bytes = BLOCK * n * n
-    gather_s = gather_bytes / bw
+def required_gather_bytes_for_balance(n: int, rate: float, bw=BW_G) -> float:
+    return (n**3) * bw / rate
+
+
+def row(n: int, rate: float) -> dict:
+    g_one = BLOCK * n * n
+    gather_s = g_one / BW_G
     matmul_s = (n**3) / rate
     return {
         "n": n,
-        "gather_bytes": gather_bytes,
+        "rate_MAC_s": rate,
+        "gathered_bytes_one_block_per_entry": g_one,
         "gather_s": gather_s,
         "matmul_s": matmul_s,
         "gather_over_matmul": gather_s / matmul_s,
+        "required_gather_bytes_for_balance": required_gather_bytes_for_balance(n, rate),
     }
 
 
 def main() -> int:
     rows = []
-    for n in (512, 1024, 2048, 4096):
-        rows.append({"naive_matmul": components(n, rate=NAIVE_RATE),
-                     "tensor_core_matmul": components(n, rate=TC_RATE)})
-
-    # n where gather_s == matmul_s under the tensor-core rate: 32 n^2 / BW = n^3 / TC
-    crossover_tc = (BLOCK / GATHERED_BW) / (1.0 / TC_RATE)
-
+    for n in (256, 512, 1024):
+        rows.append({"field_matmul": row(n, RATE_FIELD), "int8_matmul": row(n, RATE_INT8)})
     out = {
         "date": "2026-10-09",
-        "note": "estimate under labelled assumptions; not a measurement",
-        "assumptions": {"gathered_BW_B_s": GATHERED_BW, "block_bytes": BLOCK,
-                        "naive_MAC_s": NAIVE_RATE, "tensor_core_MAC_s": TC_RATE},
-        "crossover_n_tensor_core": crossover_tc,
+        "note": "corrected: no tensor-core assumption for the field; grounded rates only",
+        "assumptions": {"gathered_BW_B_s": BW_G, "field_MAC_s": RATE_FIELD, "int8_MAC_s": RATE_INT8,
+                        "block_bytes": BLOCK},
         "runs": rows,
     }
     os.makedirs("artifacts", exist_ok=True)
-    with open(os.path.join("artifacts", "memhard-balance-20261009.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join("artifacts", "memhard-balance-20261009b.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2)
     print(json.dumps(out, indent=2))
     return 0

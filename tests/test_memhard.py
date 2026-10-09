@@ -29,9 +29,10 @@ def test_gather_and_recompute_costs():
 
 
 def test_balance_regime():
-    # With a fast (tensor-core) matmul the gather dominates for small n (memory-hard regime).
-    assert mb.components(512, rate=mb.TC_RATE)["gather_over_matmul"] > 1.0
-    # ... but the matmul dominates again for large n (compute regime).
-    assert mb.components(4096, rate=mb.TC_RATE)["gather_over_matmul"] < 1.0
-    # With the naive matmul the matmul always dominates (memory layer cosmetic).
-    assert mb.components(512, rate=mb.NAIVE_RATE)["gather_over_matmul"] < 1.0
+    # With one 32-byte block per A entry, the matmul dominates (memory layer cosmetic).
+    r = mb.row(512, mb.RATE_FIELD)
+    assert r["gather_over_matmul"] < 1.0
+    # To make the gather dominate, the per-attempt gather must be much larger than one block/entry.
+    assert r["required_gather_bytes_for_balance"] > r["gathered_bytes_one_block_per_entry"]
+    n, rate = 256, mb.RATE_FIELD
+    assert abs(mb.required_gather_bytes_for_balance(n, rate) - (n**3) * mb.BW_G / rate) < 1

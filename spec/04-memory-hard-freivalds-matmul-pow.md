@@ -62,7 +62,10 @@ chosen so the two are **comparable** (both matter); otherwise the memory layer i
 - **Verifier dataset cost**: whether holding `D` on nodes is acceptable.
 - **Agility**: epoch regeneration cost vs ASIC-hostility.
 - **Balance**: if matmul dominates, the memory layer does not change the ASIC story; if gather
-  dominates, it is closer to a memory-hard PoW with a matmul wrapper.
+  dominates, it is closer to a memory-hard PoW with a matmul wrapper. **ADR 0008: with one 32-byte
+  block per entry the matmul dominates on the CMP (not memory-hard); memory-hardness requires a
+  large-slice gather (`G > n^3 * BW / rate`) and/or an int8-representable modulus with tensor cores,
+  and makes the PoW bandwidth-bound.**
 
 ## 6. Scope
 

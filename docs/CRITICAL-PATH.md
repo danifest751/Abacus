@@ -39,6 +39,9 @@ chain. If not, the correct outcome is an **explicit, published negative result**
   - Additional falsifiers: gathered access stays bandwidth-bound and GPU-favourable; work model
     monotone in bytes fetched; operands not cacheable across attempts; verifier dataset cost; epoch
     regeneration cheap yet ASIC-hostile.
+  - **Status (ADR 0008): not memory-hard as sketched.** With one 32-byte block per entry the matmul
+    dominates on the CMP; the A' gate requires a large-slice gather and/or an int8-representable
+    modulus, plus a measured int8 matmul rate and a warm gathered bandwidth.
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
   transcript; verifier checks in `O(log n)`.
   - Falsifiers: NTT linearity (block/butterfly reuse, precomputed twiddle plans); transcript
