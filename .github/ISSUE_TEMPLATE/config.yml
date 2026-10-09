@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/danifest751/Abacus/security/advisories/new
+    about: Report a verifier soundness bug or a work-model break privately.
+  - name: Questions and discussion
+    url: https://github.com/danifest751/Abacus/discussions
+    about: Ask questions or discuss the research here.
