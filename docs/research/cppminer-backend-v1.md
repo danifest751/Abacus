@@ -84,6 +84,21 @@ height before either submits, and the second `SUB` is rejected on a prev-id mism
 prototype behaviour; a real pool needs per-client difficulty and stale handling. No share accounting
 or payout exists.
 
+## Candidate A' memory-hard path (mock)
+
+`--dataset N [--seg BYTES]` gathers `A, B` from an on-GPU dataset instead of expanding (device
+`gather_kernel`). n=64, dataset 1 GiB on the CMP 50HX:
+
+| seg | attempts/s | gather GB/s |
+|---:|---:|---:|
+| 4 KiB | 2159 | 72.4 |
+| 64 KiB | 322 | 173.0 |
+| (plain expand, ref) | 5298 | — |
+
+Gather bytes/attempt at seg=4 KiB are 2*n^2*4096 = 33.5 MB, ~0.46 ms at 72 GB/s, versus a ~0.04 ms
+matmul — so the gather **dominates**: the memory-hard path works on the GPU. The node-side dataset
+(generation + verification) is the next step; the mock is self-contained.
+
 ## Not implemented
 
 - **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
