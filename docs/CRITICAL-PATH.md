@@ -85,7 +85,10 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **D2/D3/D4 done on candidate A**; probes: `instance_probe.py`, `omega_probe.py`,
   `freivalds_forgery_probe.py`. A toy CPU mine+verify loop works (`mine_sim.py`).
 - **GPU baseline (E5 start)**: Goldilocks matmul GPU vs CPU on the CMP 50HX (`gpu-baseline-v1.md`);
-  the GPU advantage is a ~constant factor, i.e. **work is portable**, not superlinear.
-- **Next**: (1) Rust parity for the Fiat–Shamir Freivalds binding; (2) choose a parameter profile
-  `(n, D, k)` and measure verifier throughput; (3) matched CPU/GPU mine-scope (D5) with the parity
-  kernel.
+  the GPU advantage is a ~constant factor, i.e. **work is portable**, not superlinear (D5 work rate
+  done).
+- **Verifier throughput** measured and the `n > 2k` constraint recorded (ADR 0006;
+  `docs/research/verifier-throughput-v1.md`); Rust parity for the Fiat–Shamir binding done.
+- **Next**: (1) cross-language FS differential (adapter); (2) a GPU *attempt* kernel for a matched
+  CPU/GPU mine-scope (D5) at a chosen profile; (3) finalise the `(n, D, k)` profile; then decide on a
+  minimal testnet prototype. Candidate A is currently a **positive** result.

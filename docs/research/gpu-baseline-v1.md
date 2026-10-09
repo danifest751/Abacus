@@ -35,6 +35,19 @@ Date: 2026-10-09. Host: local server, **CMP 50HX** (Turing, sm_75), CUDA 13.3. K
 - This is a **throughput baseline**, not a work model, miner or consensus. It makes no claim about
   difficulty, reuse or the existence of a work function.
 
+## D5 — matched CPU/GPU work rate (candidate A)
+
+Same field (Goldilocks), same machine (CMP 50HX), same kernel family (dense `n x n` product):
+
+- n = 512: GPU 63.8 GMAC/s vs **naive CPU 0.154 GMAC/s → ~415x**.
+- The GPU rate is roughly flat (44-64 GMAC/s) across n; the CPU rate is ~0.15 GMAC/s.
+
+Interpretation: the GPU advantage is a **constant factor**, not a superlinear break, so the work
+function stays **portable** across CPU and GPU (the D5 threat — a memory-rich device winning
+superlinearly — does not fire for dense matmul). Caveat: the CPU baseline is naive; BLAS/Strassen
+would narrow the constant, and Strassen also lowers the work exponent (see `omega_probe.py`), but
+neither is superlinear in the way that would break monotonicity.
+
 ## Next (GPU)
 
 - A tensor-core matmul baseline and an NTT baseline, on the same matched CPU scope, to bound the
