@@ -40,6 +40,17 @@ tests and the self-test binary.
 - PRs should reference the critical-path item they advance and include the gate result.
 - Preserve source/config hashes and seeds with any experiment.
 
+## Repository hygiene (avoid GitHub quotas)
+
+The repository stays **private** for now and must not consume GitHub metered features:
+
+- **No GitHub Actions / workflows** (no CI minutes). Checks run locally via `python scripts/check.py`.
+- **No Git LFS** (no LFS storage/bandwidth). Keep binaries out of Git; `.gitignore` excludes CUDA
+  artifacts, build output and research artifacts.
+- **No Packages/registry, releases or cloud jobs** by default.
+- Commit compact, reproducible **summaries** with hashes/seeds; keep raw data and large results
+  under an ignored `artifacts/`.
+
 ## Reporting security issues
 
 See [SECURITY.md](SECURITY.md). Use private vulnerability reporting for sensitive findings.
