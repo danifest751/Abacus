@@ -1,10 +1,9 @@
 # ADR 0008 — A' is not memory-hard as first sketched; correct the balance
 
 Status: accepted correction. Revises the A' balance claim (ADR 0007, spec/04).
-**Rate note (2026-10-09):** the field matmul rate below (~44 GMAC/s) was a cold-clock measurement;
-warm it is ~190 GMAC/s (`gpu-baseline-v1.md`). The conclusion (one block per entry is compute-bound)
-is unchanged; the gather needed for balance is ~4x smaller than the figures below. The A'
-large-slice measurements are in `attempt-rate-v2.md`.
+Amended by ADR 0011: the matmul rate used here (~44 GMAC/s) was cold-clock (warm ~177 GMAC/s), and
+small random reads are bound by the access rate, not bandwidth. The conclusion for one block per
+entry (compute-bound) stands; path (i) was measured in ADR 0011.
 
 ## Context
 

@@ -1,8 +1,12 @@
 # Verifier throughput v1 — candidate A (CPU, release)
 
+> **Status: superseded** (2026-10-09) by [verifier-throughput-v2](verifier-throughput-v2.md). The `k = 128` profile rested on the `1/2` per-challenge bound; over `F_P` the bound is `<= 2^-63`
+> (ADR 0009), so `k = 2..3` suffices. The field was mislabelled `2**61 - 1`; the code uses Goldilocks.
+>
+> The original record follows unchanged.
+
 Date: 2026-10-09. Bench: `crates/abacus-verifier/src/bin/abacus-verify-bench.rs`
-(`cargo run --release --bin abacus-verify-bench`). Field: Goldilocks `P = 2**64 - 2**32 + 1` (an earlier draft said `2**61 - 1`; the code has always
-used Goldilocks).
+(`cargo run --release --bin abacus-verify-bench`). Field: `P = 2**61 - 1` (the Freivalds field).
 Challenge derivation: commit-then-expand (ADR 0006). CPU: desktop x86-64, release build.
 
 Work = `n^3` scalar multiplications for the product; verification = one `O(n^2)` commitment hash plus
@@ -24,30 +28,9 @@ Work = `n^3` scalar multiplications for the product; verification = one `O(n^2)`
   `n=1024, k=128` it is **0.34x** (verifier ~3x cheaper than the work).
 - The earlier 714x blow-up was the naive Fiat–Shamir derivation (hashing the whole `C` per challenge
   element), fixed by commit-then-expand (ADR 0006).
-- ~~A recommended parameter profile is therefore `k = 128` with `n >= 512`~~ **Superseded by ADR
-  0009:** the per-challenge error is `<= 2^-63`, so `k = 2..3` suffices and the verifier costs
-  `~4..6 n^2`; re-measured below (v1b). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
+- A recommended parameter profile is therefore `k = 128` with `n >= 512`, ideally `n = 1024..2048`
+  (4-8x verifier margin). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
   profile.
-
-## v1b — re-run with `k = 2, 3` (ADR 0009)
-
-Same machine and bench (`abacus-verify-bench`, release), challenges now bound to `(preheader, C)`.
-Raw: `artifacts/verify-bench-20261009b.json` (not in Git).
-
-| n | k | build s | verify s | verify / build |
-|---:|---:|---:|---:|---:|
-| 256 | 2 | 0.0878 | 0.0042 | 0.048 |
-| 256 | 3 | 0.0878 | 0.0077 | 0.088 |
-| 256 | 32 | 0.0889 | 0.0350 | 0.39 |
-| 256 | 128 | 0.0872 | 0.1266 | 1.45 |
-| 512 | 2 | 0.7105 | 0.0149 | 0.021 |
-| 512 | 3 | 0.6985 | 0.0188 | 0.027 |
-| 1024 | 2 | 5.6255 | 0.0634 | 0.011 |
-| 1024 | 3 | 5.6239 | 0.0793 | 0.014 |
-| 1024 | 128 | 5.6271 | 1.9951 | 0.35 |
-
-With `k = 2` the verifier is ~21x cheaper than the (naive CPU) work already at `n = 256`, where
-`k = 128` made it 1.45x **more** expensive. The verifier no longer forces large `n`.
 
 ## Caveats
 

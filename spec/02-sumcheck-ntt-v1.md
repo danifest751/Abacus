@@ -1,66 +1,66 @@
 # ABACUS-LAB-v1 — sumcheck / NTT specification
 
-Status: initial. Defines the Goldilocks field, the NTT object and the sumcheck verification problem
-studied by candidate B. No consensus, difficulty or network is specified here.
+Status: current (revised 2026-10-09). Defines the Goldilocks field, the NTT object and the
+non-interactive sumcheck used by candidate B (a secondary study, ADR 0003). No consensus is specified.
 
 ## 1. Field
 
-Goldilocks: residues modulo `P = 2**64 - 2**32 + 1`, a prime with 2-adicity 32. A generator is `7`;
-`7 ** ((P - 1) >> k)` is a primitive `2**k`-th root of unity for `k <= 32`. Arithmetic uses 128-bit
-intermediates; products are reduced modulo `P`.
+Goldilocks: residues modulo `P = 2**64 - 2**32 + 1`, 2-adicity 32. `7` generates the multiplicative
+group; `7 ** ((P - 1) >> k)` is a primitive `2**k`-th root of unity for `k <= 32`.
 
 ## 2. The NTT object
 
-`NTT_n(a)_j = sum_i a_i * w**(i*j)`, where `n = 2**k` and `w` is a primitive `n`-th root. The
-inverse is `n**-1 * NTT_n(a)` with `w` replaced by `w**-1`. The transform is a linear map; this is
-the GPU-optimal primitive (and the linear layer of STARK/FRI provers) being studied.
+`NTT_n(a)_j = sum_i a_i * w**(i*j)` for `n = 2**k` and a primitive `n`-th root `w`; the inverse uses
+`w**-1` and scales by `n**-1`. The transform is a linear map (the linear layer of STARK/FRI provers).
 
-## 3. The sumcheck verification problem
+## 3. Sumcheck
 
-A multilinear polynomial `f(x_1..x_n)` is given by its Boolean-hypercube evaluations,
-`table[i] = f(bits of i)`, bit `j` of `i` = `x_{j+1}` (LSB = variable 1). The protocol proves
+A multilinear `f(x_1..x_n)` is given by `table[i] = f(bits of i)`, bit `j` of `i` = `x_{j+1}`
+(LSB = variable 1). The claim is `S = sum_{b in {0,1}^n} f(b)`.
+
+- Round `j`: the prover sends `(g_j(0), g_j(1))` of the degree-1 round polynomial; the verifier checks
+  `g_j(0) + g_j(1) = cur` and sets `cur = g_j(r_j)`.
+- Final: the verifier checks `f(r_1..r_n) = cur`, computing `f(r)` from the table by the multilinear
+  extension.
+
+**Challenges are Fiat–Shamir, derived by the verifier:**
 
 ```
-S = sum_{b in {0,1}^n} f(b)
+state_0 = SHA256("abacus/sumcheck" || LE64(n) || LE64(len) || table || LE64(S))
+state_j = SHA256(state_{j-1} || LE64(g_j(0)) || LE64(g_j(1))),   r_j = LE64(state_j[0..8]) mod P
 ```
 
-with `O(n)` field elements:
+A verifier that accepts prover-supplied challenges is forgeable: with all `r_j = 0` any claimed sum
+passes (found and fixed, ADR 0010).
 
-- round `j` (variable `j+1`): the prover sends the degree-1 round polynomial `g_j`, given here by
-  `(g_j(0), g_j(1))`; the verifier checks `g_j(0) + g_j(1) = cur` and sets `cur = g_j(r_j)` for a
-  random `r_j`;
-- after `n` rounds the verifier recomputes `f(r_1..r_n)` from the table via the multilinear
-  extension and checks it equals `cur`.
+**Soundness.** Each round polynomial has degree 1, so a false claim survives a round with
+probability at most `1/P` per round (`<= 2^-63` with the derivation above), at most `n * 2^-63`
+overall for a fixed transcript.
 
-Completeness holds for an honest prover. Soundness: for an incorrect claim, the probability of
-acceptance is at most `n / P` per independent challenge (negligible for `P = 2**64` analog and for
-the multi-round protocol), and any single inconsistent round value is rejected deterministically by
-the `g_j(0) + g_j(1) = cur` check.
+**Cost.** The rounds are `O(n)` field elements, but the final evaluation from the full table is
+`O(2^n)`. This verifier is a correctness building block, **not** a succinct verifier: sublinear
+verification needs `f(r)` from a commitment opening or an independently computable function, which is
+not implemented.
 
 ## 4. Encoding and canonicality
 
-- Field elements are little-endian unsigned 64-bit integers in `[0, P)`.
-- `n` is a power of two, `k = log2(n) <= 32`; the length is checked before any allocation.
-- Challenge values `r_j` are derived from the header/transcript (domain-separated) and are never
-  chosen by the prover.
+Field elements are LE64 in `[0, P)`; `n` is checked before allocation; round values `>= P` and a
+claimed sum `>= P` are rejected.
 
-## 5. Scope of this specification
+## 5. Known limitations
 
-This spec covers the field, the NTT object, the sumcheck predicate and canonical encoding. It says
-nothing about how an instance is chosen for a block, how work is priced, difficulty, chain
-selection or usefulness — those are open and live in `docs/CRITICAL-PATH.md`.
+- NTT is linear: block/butterfly decomposition, precomputed twiddle plans and transcript reuse are
+  not bounded by any anchor here.
+- Sumcheck certifies the claimed sum, not that the prover did any particular work.
+- For an NTT of size `n`, the work is `O(n log n)` and recomputation is only a `log n` factor more
+  expensive than any linear-time check (ADR 0003): the cheap-verification premise is weak for B.
 
-## 6. Known limitations
+## 6. Implementations
 
-- NTT is linear: block/butterfly decomposition, precomputed twiddle plans and transcript reuse must
-  be bounded by a nonlinear anchor; this is not yet chosen.
-- Sumcheck verifies a claimed computation cheaply; it does not certify that the prover performed the
-  work (the same work-accounting gap as Freivalds).
-- The Fiat-Shamir transform (turning the interaction non-interactive) is not specified here and must
-  bind every field that changes the instance.
+`reference/{goldilocks,ntt,sumcheck}.py` and `crates/abacus-verifier/src/{goldilocks,ntt,sumcheck}.rs`;
+transcript parity in `tests/test_chain_parity.py`.
 
-## 7. Reference and independent implementations
+## Revision history
 
-- `reference/goldilocks.py`, `reference/ntt.py`, `reference/sumcheck.py` — Python reference.
-- `crates/abacus-verifier/src/{goldilocks,ntt,sumcheck}.rs` — independent Rust implementation with
-  unit tests and a self-test that exercises Freivalds + NTT + sumcheck.
+- 2026-10-09: Fiat–Shamir challenges specified and implemented; "O(log n) verification" corrected to
+  the actual `O(2^n)` table evaluation; soundness stated per round (ADR 0010).

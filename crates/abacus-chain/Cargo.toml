@@ -23,3 +23,7 @@ path = "src/bin/abacus-node.rs"
 [[bin]]
 name = "abacus-vectors"
 path = "src/bin/abacus-vectors.rs"
+
+[[bin]]
+name = "abacus-block-bench"
+path = "src/bin/abacus-block-bench.rs"

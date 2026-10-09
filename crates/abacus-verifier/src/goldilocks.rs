@@ -42,7 +42,7 @@ pub fn pow_mod(a: u64, mut e: u64) -> u64 {
 
 /// Modular inverse by Fermat's little theorem; `None` for zero.
 pub fn inv(a: u64) -> Option<u64> {
-    if a % P == 0 {
+    if a.is_multiple_of(P) {
         None
     } else {
         Some(pow_mod(a, P - 2))

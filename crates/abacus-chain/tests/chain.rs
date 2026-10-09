@@ -21,8 +21,8 @@ fn mine_one(bits: u32) -> (Profile, Vec<u8>, Vec<u64>, [u8; 32]) {
 fn block_at(chain: &Chain, bits: u32, timestamp: u64) -> Block {
     let p = Profile { n: chain.profile.n, k: chain.profile.k, bits };
     let (h, prev) = (chain.height(), chain.tip());
-    let (nonce, c, sc) = mine(&p, &chain.chain_id, chain.version, h, &prev, timestamp, 1_000_000, chain.dataset_slice())
-        .expect("mined");
+    let (nonce, c, sc) =
+        mine(&p, &chain.chain_id, chain.version, h, &prev, timestamp, 1_000_000, chain.dataset_slice()).expect("mined");
     let ph = preheader(&chain.chain_id, chain.version, h, &prev, timestamp, bits, nonce);
     Block { height: h, prev, timestamp, bits, nonce, id: block_id(&ph, &c), c, score: sc }
 }
@@ -177,4 +177,49 @@ fn best_chain_prefers_more_work() {
     assert!(std::ptr::eq(best_chain(&a, &b), &b));
     assert!(b.cumulative_work() > a.cumulative_work());
     assert_eq!(b.cumulative_work(), 2 * 16);
+}
+
+#[test]
+fn rejects_wrong_height() {
+    let mut chain = Chain::new(profile(2), [15u8; 32], 1);
+    chain.mine_next(10, 100_000).unwrap();
+    let mut blk = block_at(&chain, chain.next_bits(), 20);
+    blk.height += 1;
+    assert_eq!(chain.try_append(blk), Err(Reject::Height));
+}
+
+#[test]
+fn rejects_wrong_product_and_wrong_score_as_pow() {
+    let mut chain = Chain::new(profile(2), [16u8; 32], 1);
+    let good = block_at(&chain, chain.next_bits(), 10);
+    let ph = preheader(&chain.chain_id, 1, 0, &good.prev, 10, good.bits, good.nonce);
+
+    // A different C with a consistent id and score: only the PoW check can reject it.
+    let mut bad_c = good.clone();
+    bad_c.c[0] = (bad_c.c[0] + 1) % P;
+    bad_c.score = score(&ph, &bad_c.c);
+    bad_c.id = block_id(&ph, &bad_c.c);
+    assert_eq!(chain.clone().try_append(bad_c), Err(Reject::Pow));
+
+    // A claimed score that is not the hash of (preheader, C).
+    let mut bad_score = good.clone();
+    bad_score.score = [0u8; 32];
+    assert_eq!(chain.clone().try_append(bad_score), Err(Reject::Pow));
+
+    // A non-canonical entry is rejected before any hashing.
+    let mut noncanonical = good.clone();
+    noncanonical.c[0] = P;
+    assert_eq!(chain.clone().try_append(noncanonical), Err(Reject::Pow));
+
+    assert!(chain.append_checked(good));
+}
+
+#[test]
+fn retarget_boundary_uses_window_minus_one_intervals() {
+    // 16 blocks spaced exactly at the target: 15 intervals of 10 s = the expected 150 s, no change.
+    let mut on_target = Chain::new(profile(3), [17u8; 32], 1);
+    for i in 0..16u64 {
+        on_target.mine_next(1000 + i * 10, 1_000_000).unwrap();
+    }
+    assert_eq!(on_target.next_bits(), 3);
 }

@@ -8,7 +8,8 @@ ADR 0006. Found in the 2026-10-09 code review.
 ADR 0004 states that a wrong `C` passes one Freivalds challenge with probability `1/2`, so `k`
 challenges give `2^-k`, and adopts `k = 128`. ADR 0006 then derives the verifier-cost constraint
 `n > 2k` (so `n = 1024..2048`). The `1/2` bound is the classical one for challenges `r in {0,1}^n`.
-Our challenges are **uniform over `F_P^n`** (Goldilocks, `P = 2^64 - 2^32 + 1`).
+Our challenges are **(nearly) uniform over `F_P^n`** (Goldilocks, `P = 2^64 - 2^32 + 1`), not over
+`{0,1}^n`.
 
 ## The correct bound
 

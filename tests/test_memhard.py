@@ -37,13 +37,14 @@ def test_gather_storage_and_naive_recompute_costs():
 
 
 def test_balance_regime():
-    # With one 32-byte block per A entry, the matmul dominates (memory layer cosmetic).
-    r = mb.row(512, mb.RATE_FIELD)
-    assert r["gather_over_matmul"] < 1.0
-    # To make the gather dominate, the per-attempt gather must be much larger than one block/entry.
-    assert r["required_gather_bytes_for_balance"] > r["gathered_bytes_one_block_per_entry"]
-    n, rate = 256, mb.RATE_FIELD
-    assert abs(mb.required_gather_bytes_for_balance(n, rate) - (n**3) * mb.BW_G / rate) < 1
+    # Prototype (one 8-byte word per entry): the matmul dominates, so it is not memory-hard.
+    for n in (256, 512, 1024):
+        assert mb.row(n)["prototype_gather_over_matmul"] < 1.0
+    # Large nonlinear slices: the cooperative gather dominates once seg exceeds the balance size.
+    r = mb.row(256, 2560)
+    assert r["balance_seg_bytes"] < 2560 and r["slice_gather_over_matmul"] > 1.0
+    # The balance segment grows linearly with n (matmul n^3 vs gather n^2).
+    assert abs(mb.balance_segment_bytes(512) / mb.balance_segment_bytes(256) - 2.0) < 1e-9
 
 
 def test_linear_segment_fold_collapses_with_prefix_sums():

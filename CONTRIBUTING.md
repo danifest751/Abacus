@@ -10,7 +10,9 @@ path** are the most valuable.
   explicitly parked.
 - **English** is the primary language for code, docs, issues and commits. Russian is secondary,
   under `docs/ru/`, clearly labelled.
-- This is **not** a coin project. Do not add wallets, consensus, mining or monetary framing.
+- This is **not** a coin project. The chain prototype and the GPU miner exist only as a test harness
+  for the work function (frozen at the E6 gate); do not extend them, and do not add wallets, rewards or
+  monetary framing, unless a critical-path experiment needs it.
 - **Falsification first.** Prefer experiments that break a candidate work function to ones that
   confirm it. Keep failures and censored observations.
 
@@ -22,14 +24,21 @@ Run the local gate and make sure it passes:
 python scripts/check.py
 ```
 
-This runs the Python tests (including the Python/Rust differential corpus), the Rust workspace
-tests and the self-test binary.
+This runs the Python tests (including the Python/Rust differential and parity tests), `cargo fmt
+--check`, `cargo clippy` with warnings as errors, the Rust workspace tests and the self-test binary.
+GPU measurements are reproduced with `bash scripts/gpu_suite.sh` on a CUDA host.
 
 ## Style and layout
 
-- Rust: `cargo fmt` and `cargo clippy` clean; no third-party crates in the ordinary gate.
+- Rust: `cargo fmt` (see `rustfmt.toml`) and `cargo clippy -D warnings` clean (enforced by the gate);
+  no third-party crates.
 - Python: standard library only in the gate; keep the reference implementation transparent.
-- Keep research summaries compact; put raw output under an ignored `artifacts/`, not in Git.
+- Keep research summaries compact; put raw output under an ignored `artifacts/`, not in Git. A
+  research note records its date, environment, source hashes, method and caveats; a note that is
+  superseded or withdrawn keeps its original text below a status block that says why, and
+  `docs/research/README.md` is updated.
+- GPU timings: warm the device first and report the median of repeated event timings (the CMP idle
+  governor under-clocks cold runs 4–20x).
 - No paid CI, cloud GPU jobs or GitHub Actions by default.
 
 ## Commits, issues and PRs

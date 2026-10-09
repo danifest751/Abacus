@@ -1,81 +1,60 @@
 # Review guide — Abacus (experimental Verifiable Algebra PoW)
 
 This is a **research laboratory**, not a protocol, coin or security claim. The goal of a review is to
-find where the research is wrong, incomplete or overclaimed. Everything here is falsification-first;
-a negative result is a valid outcome.
-
-## Changes since the first review (2026-10-09)
-
-The first review of `bb6e532` is answered in ADR 0009 (the per-challenge Freivalds error is
-`<= 2^-63`, not `1/2`; `k = 2..3` suffices) and ADR 0010 (difficulty enforced and committed,
-timestamp rules, malformed-input panics, data-dependent A' dataset, the withdrawn A' attempt-rate
-result, sumcheck Fiat–Shamir, full Python/Rust parity). Questions 1 and 5 below are partly answered
-there; please re-check them against the new code.
+find where the research is wrong, incomplete or overclaimed. A negative result is a valid outcome.
 
 ## What to review (in order)
 
-1. `01-ABACUS-RESEARCH-PLAN.md` — the objective, candidates A/B/C, test plan, gates.
-2. `docs/CRITICAL-PATH.md` — the single open question and the decisive experiments.
-3. `docs/THREAT-MODEL.md` — linearity, precomputation, reuse, resources, quantum and ASIC posture.
-4. `spec/01`-`spec/04` — the lab, sumcheck/NTT, candidate A (header-bound Freivalds matmul), candidate
-   A' (memory-hard).
-5. `docs/decisions/0001`-`0010` — the decisions, including two bugs we found ourselves (ADR 0004,
-   0006), two corrections (ADR 0008 plus the warm-bandwidth note) and the review fixes (ADR 0009,
-   0010).
-6. Code: `reference/` (Python) and `crates/abacus-verifier` + `crates/abacus-chain` (Rust); the
-   differential/parity tests are the correctness evidence.
-7. Empirical: `docs/research/*` (GPU baselines, verifier throughput, memory-hard balance/attempt rate,
-   local prototype, multi-node testnet, CPPminer backend).
+1. `docs/ASSESSMENT.md` — the current answer to the central question and its limits.
+2. `docs/CRITICAL-PATH.md` — the question, the decisive experiments and their status.
+3. `spec/03` (candidate A) and `spec/04` (candidate A'); `spec/01`, `spec/02` for the verifiers.
+4. `docs/decisions/` — ADR 0001–0011. ADR 0009–0011 record the corrections from the first review
+   (soundness bound, consensus fixes, A' measurements).
+5. Code: `reference/` (Python) and `crates/` (Rust). Correctness evidence: unit tests, the Python/Rust
+   differential and parity tests, and the CUDA miner mining into the Rust node.
+6. Empirical: `docs/research/README.md` lists the current notes; superseded and withdrawn notes are
+   kept with their reasons.
 
-## The central claim under test (candidate A)
+## Claims under test
 
-> A permissionless PoW can be built from a dense matmul `C = A*B` over Goldilocks, where `A, B` derive
-> from the header (so no screening is possible), the score is `SHA256(domain || preheader || C)` against
-> a target, and verification uses `k` **Fiat-Shamir-bound Freivalds** challenges.
+> **Candidate A.** A dense matmul `C = A*B` over Goldilocks, with `A, B` derived from the preheader,
+> a score `SHA256("abacus/score" || preheader || C)` against a target and `k` Fiat–Shamir Freivalds
+> challenges bound to `(preheader, C)`, is a sound permissionless PoW.
+
+> **Assessment.** It is sound at the construction level, but the linear algebra adds cost, not
+> security or usefulness (`ASSESSMENT.md`).
 
 Attack these specifically:
 
-- **Forgery / soundness.** Is the `k`-challenge Fiat-Shamir binding (ADR 0004) actually sound? Can a
-  wrong `C` pass with non-negligible probability, or be ground without the matmul? ADR 0009 states
-  `<= Q * 2^-63k` for a `Q`-query forger; check it and the revised `n > 2k` constraint.
-- **Work accounting.** The work is `n^omega`, not `n^3`. Is the difficulty monotone in the best-known
-  multiplication cost, and is a uniform algorithmic constant absorbed by retarget (ADR 0005)?
-- **Linearity.** With header-derived `A, B`, is screening/decomposition/precompute really excluded?
-  Look for any field that yields new attempts, or any way to obtain `C` without the `n^omega` product.
-- **Verifier cost / DoS.** Every node verifies every block at `O(k n^2)`; is the worst-case cost
-  bounded before variable-length parsing?
-- **Post-quantum and ASIC posture.** A/B are hash-based (Grover caveat); C is not PQ. A is ASIC-friendly
-  and A' only raises the barrier (ADR 0007/0008). Are these stated precisely, without overclaiming?
+- **Soundness.** Per-challenge error `<= 2^-63` and `<= Q * 2^-63k` for a `Q`-query forger (ADR 0009):
+  is the non-uniformity of `LE64 mod P` handled correctly, and is binding the root to `(preheader, C)`
+  enough?
+- **Work accounting.** Work is `n^omega` per attempt and `2^bits` attempts per block (ADR 0005). Is there
+  any field that yields attempts without a new product, or any way to obtain `C` cheaper than a
+  product of two fresh uniform matrices?
+- **Consensus rules of the prototype** (spec/03 §4): committed and enforced difficulty, median-time-past
+  timestamps, canonical `C`. Are there remaining inflated-weight or malformed-input paths?
+- **A'.** Is the large-slice bandwidth result (ADR 0011) sound, and what do dataset time–memory
+  trade-offs do to it? Is "Ethash-class" the right comparison?
+- **The assessment.** Is anything overclaimed or underclaimed? Is a stronger differentiating property
+  available that we missed?
 
 ## What we do *not* claim
 
-- No currency, network, production miner or consensus.
-- No "usefulness" (a random matmul is not a consumer computation).
-- No ASIC resistance, no post-quantum security, no mainnet parameters.
-- The GPU advantage is a **measured constant factor** (CMP 50HX), not a proof of work-model soundness.
+No currency, production network or consensus design; no usefulness; no ASIC resistance; no
+post-quantum security; no mainnet parameters. GPU numbers are for one device (CMP 50HX) and are not a
+matched CPU/GPU comparison.
 
 ## How to reproduce
 
 ```
-python scripts/check.py      # Python + Rust tests + self-test + differential corpus
+python scripts/check.py        # tests, differential/parity, rustfmt, clippy, self-test
+bash scripts/gpu_suite.sh      # GPU measurements on a CUDA host
 ```
 
-Experiments live in `scripts/` and `cuda/`; raw outputs go to an ignored `artifacts/`.
+Probes are in `scripts/`; raw outputs go to an ignored `artifacts/`.
 
-## Specific questions we want answered
+## Prior art we consulted
 
-1. Does the Fiat-Shamir Freivalds construction (ADR 0004/0006/0009) give `<= Q * 2^-63k` soundness
-   under a miner who commits to `C` first, and is `k = 2..3` a sensible profile?
-2. Is candidate A genuinely a *permissionless* puzzle (no free attempt fields, no cheaper route to a
-   valid `C`), or does linearity still leave a gap we have not closed?
-3. For A' (memory-hard gather), is the gathered instance sound, and does the dataset-before-instance
-   ordering really bind (a miner must hold the dataset)?
-4. Are the empirical claims (`docs/research/*`) reproducible from the given commands, and are the
-   caveats honest?
-5. What is the strongest attack you can mount on the work model of candidate A or A'?
-
-## A note on prior art we already consulted
-
-Pearl (matmul PoW), Tenero (matmulhash v2), and the closed RGminer/PeakMiner were studied separately
-(`handoff-gpu-opt-20261007/`); the header-binding + no-noising distinction from Pearl is in
-`spec/03`. Please challenge any place where we claim novelty — we prefer to be told we are wrong.
+Pearl (matmul proofs of useful work), Tenero (matmulhash), kHeavyHash, Ethash/ProgPoW. Please
+challenge any place where we claim novelty — we prefer to be told we are wrong.

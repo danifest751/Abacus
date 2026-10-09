@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Abacus local check gate.
 
-Runs the Python tests, the Rust workspace tests, the Rust self-test binary and the
-Python/Rust differential corpus. No network, no third-party Python packages beyond pytest.
+Runs the Python tests (including the Python/Rust differential and parity tests), rustfmt and
+clippy (warnings are errors), the Rust workspace tests and the Rust self-test binary. No network, no third-party Python packages beyond pytest.
 
 Usage: python scripts/check.py
 """
@@ -34,6 +34,10 @@ def main() -> int:
     # Rust tests and self-test, if a toolchain is present.
     cargo = shutil.which("cargo")
     if cargo:
+        results.append(run("cargo fmt", [cargo, "fmt", "--all", "--check"]))
+        results.append(
+            run("cargo clippy", [cargo, "clippy", "--workspace", "--all-targets", "--quiet", "--", "-D", "warnings"])
+        )
         results.append(run("cargo test", [cargo, "test", "--workspace", "--quiet"]))
         results.append(
             run("cargo run self-test", [cargo, "run", "--quiet", "--bin", "abacus-verifier"])

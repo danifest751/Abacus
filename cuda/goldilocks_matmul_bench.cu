@@ -2,11 +2,15 @@
 //
 // Field: P = 2**64 - 2**32 + 1. Device multiply uses the standard reduce128 (plonky3-style).
 // This is a bounded throughput baseline that substantiates the "GPU-optimal" premise; it is not a
-// miner or a work model.
+// miner or a work model. The GPU is kept busy for `warm_s` seconds first (the CMP idle governor
+// otherwise under-clocks the first launches ~4x), then the kernel is timed with CUDA events `reps`
+// times and the median is reported. The CPU reference (n <= 512) is a naive single-threaded loop and
+// checks the GPU result exactly.
 //
 // Build:  nvcc -O3 -arch=sm_75 goldilocks_matmul_bench.cu -o gl_mm_bench
-// Run:    ./gl_mm_bench [n]
+// Run:    ./gl_mm_bench [n] [reps] [warm_s]
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -86,6 +90,8 @@ static unsigned long long xorshift(unsigned long long& s) {
 
 int main(int argc, char** argv) {
     int n = argc > 1 ? atoi(argv[1]) : 1024;
+    int reps = argc > 2 ? atoi(argv[2]) : 5;
+    double warm_s = argc > 3 ? atof(argv[3]) : 3.0;
     std::vector<unsigned long long> A(n * n), B(n * n), Cgpu(n * n), Ccpu(n * n);
     unsigned long long s = 0x123456789ABCDEFULL;
     for (auto& x : A) x = xorshift(s) % P;
@@ -97,13 +103,23 @@ int main(int argc, char** argv) {
     cudaMemcpy(dA, A.data(), n * n * 8, cudaMemcpyHostToDevice);
     cudaMemcpy(dB, B.data(), n * n * 8, cudaMemcpyHostToDevice);
     dim3 block(TS, TS), grid(n / TS, n / TS);
-    matmul_kernel<<<grid, block>>>(dA, dB, dC, n);   // warmup
-    cudaDeviceSynchronize();
-    auto t0 = std::chrono::high_resolution_clock::now();
-    matmul_kernel<<<grid, block>>>(dA, dB, dC, n);
-    cudaDeviceSynchronize();
-    auto t1 = std::chrono::high_resolution_clock::now();
-    double gpu_s = std::chrono::duration<double>(t1 - t0).count();
+    auto w0 = std::chrono::high_resolution_clock::now();
+    do {
+        matmul_kernel<<<grid, block>>>(dA, dB, dC, n);
+        cudaDeviceSynchronize();
+    } while (std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - w0).count() < warm_s);
+    cudaEvent_t e0, e1;
+    cudaEventCreate(&e0); cudaEventCreate(&e1);
+    std::vector<double> ts;
+    for (int r = 0; r < reps; ++r) {
+        float ms = 0;
+        cudaEventRecord(e0);
+        matmul_kernel<<<grid, block>>>(dA, dB, dC, n);
+        cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&ms, e0, e1);
+        ts.push_back(ms / 1e3);
+    }
+    std::sort(ts.begin(), ts.end());
+    double gpu_s = ts[ts.size() / 2];
     cudaMemcpy(Cgpu.data(), dC, n * n * 8, cudaMemcpyDeviceToHost);
     cudaError_t err = cudaGetLastError();
 
@@ -121,7 +137,8 @@ int main(int argc, char** argv) {
     double macs = (double)n * n * n;
     printf("{\n");
     printf("  \"n\": %d,\n", n);
-    printf("  \"gpu_s\": %.6f,\n", gpu_s);
+    printf("  \"reps\": %d, \"warm_s\": %.1f,\n", reps, warm_s);
+    printf("  \"gpu_s\": %.6f, \"gpu_s_min\": %.6f, \"gpu_s_max\": %.6f,\n", gpu_s, ts.front(), ts.back());
     printf("  \"gpu_GMAC_s\": %.2f,\n", macs / gpu_s / 1e9);
     if (cpu_s > 0) {
         printf("  \"cpu_s\": %.6f,\n", cpu_s);

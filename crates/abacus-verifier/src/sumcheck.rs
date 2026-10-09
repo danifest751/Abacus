@@ -23,9 +23,7 @@ pub fn full_sum(table: &[u64]) -> u64 {
 
 fn fold_first(table: &[u64], r: u64) -> Vec<u64> {
     let one_minus_r = gl::sub(1, r);
-    (0..table.len() / 2)
-        .map(|i| gl::add(gl::mul(table[2 * i], one_minus_r), gl::mul(table[2 * i + 1], r)))
-        .collect()
+    (0..table.len() / 2).map(|i| gl::add(gl::mul(table[2 * i], one_minus_r), gl::mul(table[2 * i + 1], r))).collect()
 }
 
 pub fn eval_mle(table: &[u64], n: usize, rs: &[u64]) -> u64 {

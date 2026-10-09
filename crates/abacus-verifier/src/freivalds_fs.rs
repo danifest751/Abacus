@@ -2,8 +2,8 @@
 //!
 //! `k` challenge vectors are derived from the preheader and the committed `C` (domain
 //! `abacus/check`), so a prover who fixes `C` first cannot construct a null-space forgery. Each
-//! challenge is uniform over `F_P`, so a wrong `C` passes one challenge with probability at most
-//! `~1/P` (ADR 0009). Matches `reference.chain.fs_challenges` (domain, little-endian encoding,
+//! challenge is nearly uniform over `F_P`, so a wrong `C` passes one challenge with probability at
+//! most `2^-63` (ADR 0009). Matches `reference.chain.fs_challenges` (domain, little-endian encoding,
 //! SHA-256, first 8 bytes LE).
 
 use crate::sha256::sha256;

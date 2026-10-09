@@ -39,15 +39,12 @@ chain. If not, the correct outcome is an **explicit, published negative result**
   - Additional falsifiers: gathered access stays bandwidth-bound and GPU-favourable; work model
     monotone in bytes fetched; operands not cacheable across attempts; verifier dataset cost; epoch
     regeneration cheap yet ASIC-hostile.
-  - **Status (ADR 0008): not memory-hard as sketched.** With one 32-byte block per entry the matmul
-    dominates on the CMP; the A' gate requires a large-slice gather and/or an int8-representable
-    modulus, plus a measured int8 matmul rate and a warm gathered bandwidth.
-  - **Status (ADR 0010):** the large-slice attempt-rate result is withdrawn (its linear segment fold
-    collapses under prefix sums — measured 14–466x attacker advantage, `attempt-rate-v2.md`); the
-    dataset references are now data-dependent; storage need is `8 * N` bytes. A' is not shown to be
-    memory-hard.
+  - **Status (ADR 0011):** one gathered word per entry is compute-bound; a nonlinear large-slice
+    gather is bandwidth-bound for a tuned miner, which makes A' an Ethash-class bandwidth PoW; a linear
+    fold is broken by prefix sums (ADR 0010).
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
-  transcript; verifier checks in `O(log n)`.
+  transcript; the verifier checks `O(n)` round values plus one evaluation of the polynomial (sublinear
+  only with a commitment opening; the implemented verifier reads the full table).
   - Falsifiers: NTT linearity (block/butterfly reuse, precomputed twiddle plans); transcript
     reuse; domain selection; sublinear verification does not imply sublinear *work*.
 - **C. MSM with KZG.** Header → scalars/points; miner computes an MSM + commitment; pairing checks.
@@ -86,30 +83,22 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 
 - Plan and gates: `01-ABACUS-RESEARCH-PLAN.md` (§12 E0–E7, §13 stop/revise).
 - Threats: `docs/THREAT-MODEL.md` (linearity, precompute, reuse).
-- Status: `docs/STATUS.md`.
+- Status: `docs/STATUS.md`; current answer to §1: `docs/ASSESSMENT.md`; research record:
+  `docs/research/README.md`.
 - Use "experimental Verifiable Algebra PoW"; make no security or usefulness claims.
 
 ## 8. Status (2026-10-09)
 
-- **Candidate A falsifiers resolved** (see ADR 0004, ADR 0005): screening and decomposition are
-  excluded by header-derived uniform `A, B`; the single-challenge forgery is fixed by `k`
-  Fiat–Shamir-bound Freivalds challenges; algorithmic speedup is accounted as `n^omega`. Recorded
-  downsides: ASIC-friendly, not useful.
-- **D2/D3/D4 done on candidate A**; probes: `instance_probe.py`, `omega_probe.py`,
-  `freivalds_forgery_probe.py`. A toy CPU mine+verify loop works (`mine_sim.py`).
-- **GPU baseline (E5 start)**: Goldilocks matmul GPU vs CPU on the CMP 50HX (`gpu-baseline-v1.md`);
-  a throughput point only (one naive single-threaded CPU point at n=512). **D5 is not done**: the
-  matched energy x time comparison of §4 has not been run, so portability is not established.
-- **Verifier throughput** measured (ADR 0006; `docs/research/verifier-throughput-v1.md`). The
-  `k = 128` / `n > 2k` profile rested on an over-pessimistic bound; per-challenge error is
-  `<= 2^-63`, so `k = 2..3` suffices (ADR 0009). Python/Rust parity now covers every consensus
-  derivation (ADR 0010).
-- **Next**: (1) re-derive the `(n, D, k)` profile under ADR 0009; (2) the matched CPU/GPU D5 scope at
-  that profile; (3) the D6 anchor note. Candidate A is currently a **positive** result at the
-  construction level; its work model is not yet calibrated.
-- **E6 done**: a multi-node P2P prototype (pull sync, greatest-cumulative-work adoption, reorg rollback)
-  plus an A' sync test; a 3-process demo converges
-  (`docs/research/multi-node-testnet-v1.md`, `crates/abacus-chain`).
-- **Recorded deviation from §6.** Chain, pool and CPPminer work went beyond the parked scope while
-  D5/D6 were open, and the review found consensus bugs there (ADR 0010). Those bugs are fixed and
-  CPPminer is updated to encoding v2; the chain is frozen at the E6 gate.
+- **D1–D4 done for candidate A.** Screening and reuse are excluded by the header-derived instance;
+  the single-challenge forgery is fixed by Fiat–Shamir challenges bound to `(preheader, C)` (ADR 0004,
+  0010); work is priced as `n^omega` (ADR 0005); per-challenge error `<= 2^-63`, `k = 2..3` (ADR 0009).
+- **D5 not done.** Only GPU throughput is measured (~175 GMAC/s warm, `gpu-suite-v1`); the matched
+  CPU/GPU energy x time comparison has not been run.
+- **D6 not done.** Candidate A avoids the anchor by never accepting external data; the anchor problem
+  remains open for useful-work variants.
+- **E6 prototype done** (beyond the minimal D6 simulator of §6): chain, sync and a GPU miner, used to
+  validate the construction end to end (`chain-prototype-v2`). It found and fixed consensus bugs
+  (ADR 0010) and is frozen.
+- **Answer to §1**: `docs/ASSESSMENT.md` — yes at the construction level, but the linear algebra adds
+  cost, not security or usefulness; three directions could change that, otherwise publish the neutral
+  result.

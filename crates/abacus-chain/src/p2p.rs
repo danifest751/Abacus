@@ -9,7 +9,7 @@
 //! profile, sockets have read timeouts, the number of concurrent connections is capped, and the
 //! chain lock is never held while writing to the network.
 
-use crate::{block_id, preheader, score, Block, Chain};
+use crate::{block_id, c_is_canonical, preheader, score, Block, Chain};
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// A submitted timestamp may be at most this many seconds ahead of the node's clock.
+/// A submitted or synced block's timestamp may be at most this many seconds ahead of the node's clock.
 pub const MAX_FUTURE_DRIFT: u64 = 120;
 /// Maximum number of concurrently served connections.
 pub const MAX_CONNS: usize = 64;
@@ -49,7 +49,7 @@ fn hexval(c: u8) -> Option<u8> {
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
     let b = s.as_bytes();
-    if b.len() % 2 != 0 {
+    if !b.len().is_multiple_of(2) {
         return None;
     }
     let mut out = Vec::with_capacity(b.len() / 2);
@@ -140,7 +140,8 @@ pub fn serve_conn(stream: &mut TcpStream, blocks: &[Block]) {
 }
 
 /// Pull a peer's chain and validate it against `template` (same id, version, profile, dataset).
-/// Returns the validated chain, or `None` if the peer sent anything invalid. No lock is needed.
+/// Returns the validated chain, or `None` if the peer sent anything invalid, including a block more
+/// than `MAX_FUTURE_DRIFT` seconds ahead of this node's clock. No lock is needed.
 pub fn fetch_chain(template: &Chain, addr: &str) -> io::Result<Option<Chain>> {
     let stream = TcpStream::connect(addr)?;
     stream.set_read_timeout(Some(READ_TIMEOUT))?;
@@ -166,7 +167,8 @@ pub fn fetch_chain(template: &Chain, addr: &str) -> io::Result<Option<Chain>> {
         if fresh.blocks.len() >= MAX_SYNC_BLOCKS {
             return Ok(None);
         }
-        let valid = decode_block(rest).map(|blk| fresh.append_checked(blk)).unwrap_or(false);
+        let horizon = now() + MAX_FUTURE_DRIFT;
+        let valid = decode_block(rest).is_some_and(|blk| blk.timestamp <= horizon && fresh.append_checked(blk));
         if !valid {
             return Ok(None); // invalid peer chain; ignore it entirely
         }
@@ -324,14 +326,11 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sta
         Ok(s) => BufReader::new(s),
         Err(_) => return,
     };
-    let max = max_line(chain.lock().unwrap().profile.n);
+    let n = chain.lock().unwrap().profile.n;
+    let max = max_line(n);
     let mut w = stream;
     let mut last_job: Option<(u64, [u8; 32])> = None; // (height, prev) of the last JOB handed out
-    loop {
-        let t = match read_line_bounded(&mut reader, max) {
-            Ok(Some(t)) => t,
-            _ => break,
-        };
+    while let Ok(Some(t)) = read_line_bounded(&mut reader, max) {
         if t == "SYNC" {
             let blocks = chain.lock().unwrap().blocks.clone(); // release the lock before writing
             serve_conn(&mut w, &blocks);
@@ -359,6 +358,7 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sta
                 None => Outcome::Rejected,
                 Some((nonce, _, _)) if nonce >> 32 != extranonce => Outcome::Rejected,
                 Some((_, timestamp, _)) if timestamp > now() + MAX_FUTURE_DRIFT => Outcome::Rejected,
+                Some((_, _, ref c_vec)) if !c_is_canonical(c_vec, n) => Outcome::Rejected,
                 Some((nonce, timestamp, c_vec)) => {
                     let mut c = chain.lock().unwrap();
                     let tpl = c.template();

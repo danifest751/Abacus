@@ -2,8 +2,9 @@
 
 ## Scope
 
-Abacus is a **research laboratory**. There is **no production network, no coin, no miner and no
-deployed system**, and nothing here carries a security or usefulness guarantee. Do not use this
+Abacus is a **research laboratory**. There is **no production network, no coin and no deployed
+system**; the chain prototype and the CPPminer backend are test harnesses. Nothing here carries a
+security or usefulness guarantee. Do not use this
 code where security, consensus or funds depend on it.
 
 ## What is in scope for a report
@@ -12,6 +13,8 @@ code where security, consensus or funds depend on it.
   flawed Freivalds acceptance rule, an overflow, or an encoding that admits a non-canonical case.
 - A concrete **work-model break**: a cheap way to obtain inflated weight from a stated candidate
   work function (decomposition, precomputation, reuse, screening, outsourced-work claim).
+- Consensus bugs in the chain prototype (`crates/abacus-chain`): inflated weight, accepted invalid
+  blocks, crashes or unbounded resource use from peer or miner input.
 - Resource-exhaustion in the command-line adapters (unbounded parsing/allocations).
 
 ## What is out of scope

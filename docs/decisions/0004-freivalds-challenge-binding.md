@@ -1,9 +1,9 @@
 # ADR 0004 — Freivalds challenges must be multiple and bound to the committed C
 
 Status: accepted. This corrects the naive challenge in `spec/03-header-bound-freivalds-matmul-pow.md`.
-**The soundness bound below (`1/2` per challenge, `2^-k`, `k = 128`) is superseded by ADR 0009:**
-with challenges uniform over `F_P` the per-challenge error is `<= 2^-63`, so `k = 2..3` suffices.
-The binding to `C` (the actual fix) stands; the root also binds the preheader (ADR 0010).
+Superseded in part by ADR 0009: the `1/2` per-challenge bound, `2^-k` and `k = 128` are replaced by
+`<= 2^-63` per challenge and `k = 2..3`. The binding to the committed `C` stands; the root also binds
+the preheader (ADR 0010).
 
 ## Context
 

@@ -1,92 +1,71 @@
-# Abacus Network — verifiable GPU-algebra proof of work
+# Abacus — experimental Verifiable Algebra PoW
 
-Private research into whether a **linear-algebra computation that is intrinsically GPU-optimal**
-can support standalone proof of work. This repository currently implements a reference
-verifier (Freivalds and sumcheck) and studies candidate PoW constructions. **There is no
-currency, production network or GPU miner.**
+A research laboratory asking whether a **linear-algebra computation that is intrinsically
+GPU-optimal** can support a standalone, permissionless proof of work with cheap probabilistic
+verification. **There is no currency and no production network.** A negative result is a valid
+outcome.
 
-**English is the primary repository language.**
-
-## The one open question
-
-Can a permissionless PoW be built from a linear, GPU-optimal computation (matmul, NTT, MSM)
-with **cheap probabilistic verification**, while resisting decomposition, precomputation and
-reuse? Linearity is the enemy, so a **nonlinear anchor** is the central research problem. A
-negative result is a valid outcome.
-
-## Implemented
-
-- **Verifiers** in Python and Rust, built independently and checked against each other: `Freivalds`
-  matrix-product verification over the Goldilocks field; NTT; the sumcheck protocol;
-  SHA-256; and `k`-challenge Fiat-Shamir-bound Freivalds (ADR 0004, 0009). Every consensus
-  derivation is compared Python vs Rust (`tests/test_chain_parity.py`).
-- **Chain prototype** (`crates/abacus-chain`): mine and verify blocks; bit-count difficulty; an
-  ancestor-derived, **enforced and committed** retarget with median-time-past timestamps;
-  greatest-cumulative-work fork choice; and an optional A' layer (a data-dependent epoch dataset
-  with header-random gathered operands, spec/04).
-- **Multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync, greatest-work adoption and
-  reorg rollback; a three-process demo converges.
-- **Falsifier probes and decisions**: instance-structure collapse, work exponent, Freivalds forgery,
-  Freivalds soundness, memory-hard balance, and GPU attempt rate, with records in `docs/decisions/`.
-- **GPU baselines** (`cuda/`): Goldilocks matmul CPU vs GPU, gathered-read bandwidth, and the A'
-  attempt rate on the CMP 50HX.
-- One local check command (`python scripts/check.py`).
-
-The ordinary check gate uses standard libraries only. Cargo builds offline without third-party
-crates. GitHub Actions are intentionally absent; checks run locally.
+English is the primary repository language.
 
 ## Where this stands
 
-- **Candidate A** (header-bound Freivalds matmul PoW) is a **positive result**: sound (with `k`
-  Fiat-Shamir challenges), simple, GPU-optimal; recorded downsides are ASIC-friendliness and no
-  usefulness (ADR 0005).
-- **Candidate A'** (gathered operands over an epoch dataset) is **not shown to be memory-hard**: with
-  one block per entry the matmul dominates (ADR 0008), and the large-slice attempt-rate result was
-  withdrawn because its linear segment fold collapses under prefix sums — a measured 14–466x
-  attacker advantage on the CMP (ADR 0010, `docs/research/attempt-rate-v2.md`).
-- **Candidate B** (NTT/sumcheck) is a secondary study; **C** (MSM/KZG) is a not-post-quantum reference
-  (ADR 0003).
-- Design bugs found and fixed: a single-challenge Freivalds forgery (ADR 0004), an `O(k*n^3)`
-  Fiat-Shamir derivation blow-up (ADR 0006), an over-pessimistic soundness bound that forced
-  `k = 128` and large `n` (ADR 0009), and the consensus, A' and sumcheck issues of the 2026-10-09
-  review (ADR 0010).
-- The local multi-node gate (E6) passes; no external testnet, consensus hardening or audit exists yet.
+- **Candidate A** — header-bound Freivalds matmul PoW (`spec/03`): sound and implementable. The
+  instance comes from the block header, so there is no screening or reuse; Fiat–Shamir Freivalds
+  verification errs with probability `<= 2^-63` per challenge; a full block check costs ~19 ms at
+  `n = 256` on one CPU core (about 1/5 of a naive CPU product), mostly instance expansion.
+- **But** the linear algebra adds cost, not security or usefulness; dense modular matmul is
+  ASIC-friendly; blocks carry `8 n^2` bytes. See **[the assessment](docs/ASSESSMENT.md)**.
+- **Candidate A'** (gathered operands, `spec/04`): bandwidth-bound only with a nonlinear large-slice
+  gather, which makes it an Ethash-class bandwidth PoW (ADR 0011).
+- **Candidates B (NTT/sumcheck) and C (MSM/KZG)**: verifiers only; weaker premises (ADR 0003).
+
+## What is implemented
+
+- Independent **Python and Rust verifiers**: Goldilocks field, Freivalds with Fiat–Shamir challenges,
+  NTT, Fiat–Shamir sumcheck; all consensus derivations cross-checked (`tests/test_chain_parity.py`).
+- A **chain prototype** (`crates/abacus-chain`): committed and enforced difficulty, median-time-past
+  timestamps, greatest-work fork choice, bounded pull sync, a solo/pool protocol; a GPU miner
+  (CPPminer `--algo abacus`) mines into it.
+- **GPU benches** with a reproducible suite (`scripts/gpu_suite.sh`) and CPU probes (`scripts/`).
 
 ## Run locally
 
-Tested with Python 3.12.10 and Rust 1.98.1 on Windows.
+Python 3.12 and Rust 1.98 (no third-party crates; Python tests need `pytest`):
 
 ```sh
-python scripts/check.py
+python scripts/check.py          # pytest, rustfmt, clippy -D warnings, cargo test, self-test
+bash scripts/gpu_suite.sh        # on a CUDA host: matmul, gathered reads, A' attempt folds
 ```
 
-This runs formatting-independent Python tests and the Rust workspace tests, plus the
-deterministic Python/Rust differential corpus. Experiments write to an ignored `artifacts/`.
+Raw experiment output goes to an ignored `artifacts/`.
+
+## Layout
+
+```
+spec/        specifications (lab, sumcheck/NTT, candidate A, candidate A')
+reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset)
+crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner)
+cuda/        GPU benches (matmul, gathered reads, A' attempt)
+scripts/     check gate, GPU suite, probes
+tests/       Python tests incl. Python/Rust differential and parity
+docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0011), research record
+```
 
 ## Documentation
 
-- [Research plan](01-ABACUS-RESEARCH-PLAN.md) — objective, candidates, test plan, gates.
-- [Critical path](docs/CRITICAL-PATH.md) — the single open decision and decisive experiments.
-- [Status](docs/STATUS.md) — what is implemented.
-- [Threat model](docs/THREAT-MODEL.md) — linearity, precomputation, reuse, resources, quantum and ASIC posture.
-- Specifications: [`spec/01`](spec/01-abacus-lab-v1.md) (lab), [`spec/02`](spec/02-sumcheck-ntt-v1.md)
-  (sumcheck/NTT), [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md) (candidate A),
-  [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md) (candidate A').
-- Decisions: `docs/decisions/0001`-`0010` (research boundary, work functions, verification cost,
-  Freivalds binding, candidate A, Fiat-Shamir derivation, ASIC posture, A' balance, Freivalds
-  soundness, review fixes).
-- Research notes: `docs/research/` (GPU baselines, verifier throughput, memory-hard balance and
-  attempt rate, local prototype, multi-node testnet).
-- [Language policy](docs/LANGUAGE.md).
+- [Assessment](docs/ASSESSMENT.md) — the current answer to the central question.
+- [Critical path](docs/CRITICAL-PATH.md) · [Status](docs/STATUS.md) · [Threat model](docs/THREAT-MODEL.md)
+  · [Review guide](docs/REVIEW.md) · [Research plan](01-ABACUS-RESEARCH-PLAN.md)
+- Specifications: [`spec/01`](spec/01-abacus-lab-v1.md), [`spec/02`](spec/02-sumcheck-ntt-v1.md),
+  [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md).
+- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0011). Research record:
+  [`docs/research/`](docs/research/README.md).
 
 ## Scope boundary
 
-Abacus is a research laboratory, not a production PoW or monetary blockchain. Freivalds and
-sumcheck **verify a claimed result**, not that a miner did the work; that gap is the research.
-Small-instance results do not establish GPU advantage, ASIC resistance, post-quantum security
-or mainnet parameters. Use "experimental Verifiable Algebra PoW" until specific claims have
-adequate evidence.
+Freivalds and sumcheck verify a claimed result, not that a miner did the work. Nothing here
+establishes usefulness, ASIC resistance, post-quantum security or mainnet parameters.
 
-## Credits and license
+## License
 
 MIT. See [LICENSE](LICENSE).

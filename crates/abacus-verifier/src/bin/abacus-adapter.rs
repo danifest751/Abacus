@@ -39,10 +39,7 @@ fn main() {
                 std::process::exit(2);
             }
         };
-        let nums: Vec<u64> = line
-            .split_whitespace()
-            .filter_map(|x| x.parse().ok())
-            .collect();
+        let nums: Vec<u64> = line.split_whitespace().filter_map(|x| x.parse().ok()).collect();
         if nums.len() != 3 * nn + n {
             writeln!(out, "E").unwrap();
             continue;

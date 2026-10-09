@@ -1,5 +1,10 @@
 # Attempt rate v2 — candidate A' gather folds and the prefix-sum attack (CMP 50HX)
 
+> **Status: superseded** (2026-10-09) by [gpu-suite-v1](gpu-suite-v1.md). The measurements stand, but the attack advantage ("14-466x") was computed against the naive
+> one-thread-per-entry honest kernel. Against a warp-cooperative honest miner it is 2.2-53x.
+>
+> The original record follows unchanged.
+
 Date: 2026-10-09. Bench: `cuda/attempt_bench.cu` v2 (sha256 `f676e653c7cc0a91…`), CMP 50HX (sm_75,
 driver 610.43.03, CUDA 13.3), SM clock 1950 MHz under load, memory 7000 MHz, 118–220 W. Each run:
 3 s warm-up, then CUDA-event timing of `attempts` gathers, `attempts` matmuls and `attempts` full

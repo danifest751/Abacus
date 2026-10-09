@@ -1,5 +1,10 @@
 # Gathered-read bandwidth v1 — candidate A' premise (corrected, warm)
 
+> **Status: superseded** (2026-10-09) by [gpu-suite-v1](gpu-suite-v1.md). Single chrono-timed launches and a short warm-up; only 64 KiB segments were measured, while the
+> prototype A' reads 8 bytes per entry. The suite measures 8 B to 64 KiB segments, warm, with repeats.
+>
+> The original record follows unchanged.
+
 Date: 2026-10-09. Bench: `cuda/gather_bench.cu` on the CMP 50HX (sm_75). Random 64 KiB segment reads
 from a 256 MiB buffer versus a sequential streaming read.
 

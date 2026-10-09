@@ -24,8 +24,14 @@ pub const RETARGET_WINDOW: u64 = 16;
 pub const TARGET_SPACING: u64 = 10; // seconds per block (prototype)
 /// Timestamps must be strictly greater than the median of the last `MTP_WINDOW` blocks.
 pub const MTP_WINDOW: usize = 11;
-/// Upper bound on difficulty bits, so cumulative work `sum 2^bits` fits a `u128` exactly.
+/// Upper bound on difficulty bits. Cumulative work `sum 2^bits` is exact in a `u128` for up to `2^8`
+/// blocks at the maximum and saturates beyond (never overflows).
 pub const MAX_BITS: u32 = 120;
+
+/// `C` has exactly `n^2` entries, each a canonical residue `< P`. Checked before any hashing.
+pub fn c_is_canonical(c: &[u64], n: usize) -> bool {
+    n.checked_mul(n) == Some(c.len()) && c.iter().all(|&x| x < P)
+}
 
 #[derive(Clone, Copy)]
 pub struct Profile {
@@ -241,11 +247,7 @@ pub fn mine(
 /// Fiat–Shamir Freivalds check. `profile.bits` is the **required** difficulty. Never panics on
 /// malformed input.
 pub fn verify(profile: &Profile, ph: &[u8], c: &[u64], sc: &[u8; 32], dataset: Option<&[[u8; 32]]>) -> bool {
-    let nn = match profile.n.checked_mul(profile.n) {
-        Some(v) => v,
-        None => return false,
-    };
-    if profile.bits > MAX_BITS || c.len() != nn || c.iter().any(|&x| x >= P) {
+    if profile.bits > MAX_BITS || !c_is_canonical(c, profile.n) {
         return false;
     }
     if !accept(sc, profile.bits) {
@@ -346,17 +348,19 @@ impl Chain {
         ts[ts.len() / 2]
     }
 
-    /// Difficulty (bits) required for the next block: retarget every window from timestamps.
+    /// Difficulty (bits) required for the next block. Every `RETARGET_WINDOW` blocks, the time between
+    /// the first and the last block of the window (`RETARGET_WINDOW - 1` intervals) is compared with
+    /// `(RETARGET_WINDOW - 1) * TARGET_SPACING`: +1 bit below half of it, -1 bit above twice.
     pub fn next_bits(&self) -> u32 {
         let h = self.height();
         let cur = self.blocks.last().map(|b| b.bits).unwrap_or(self.profile.bits);
-        if h == 0 || h % RETARGET_WINDOW != 0 {
+        if h == 0 || !h.is_multiple_of(RETARGET_WINDOW) {
             return cur;
         }
         let first = self.blocks[self.blocks.len() - RETARGET_WINDOW as usize].timestamp;
         let last = self.blocks.last().unwrap().timestamp;
         let elapsed = last.saturating_sub(first).max(1);
-        let expected = RETARGET_WINDOW * TARGET_SPACING;
+        let expected = (RETARGET_WINDOW - 1) * TARGET_SPACING;
         let mut bits = cur;
         if elapsed < expected / 2 {
             bits = bits.saturating_add(1); // too fast -> harder
@@ -409,10 +413,18 @@ impl Chain {
         if !self.blocks.is_empty() && block.timestamp <= self.median_time_past() {
             return Err(Reject::Timestamp);
         }
-        let ph = preheader(&self.chain_id, self.version, block.height, &block.prev, block.timestamp, block.bits, block.nonce);
+        let ph = preheader(
+            &self.chain_id,
+            self.version,
+            block.height,
+            &block.prev,
+            block.timestamp,
+            block.bits,
+            block.nonce,
+        );
         let p = Profile { n: self.profile.n, k: self.profile.k, bits: block.bits };
-        // Cheap shape check before hashing a peer-supplied C of arbitrary length.
-        if block.c.len() != p.n * p.n {
+        // Shape and canonical encoding of a peer-supplied C before anything is hashed.
+        if !c_is_canonical(&block.c, p.n) {
             return Err(Reject::Pow);
         }
         if block_id(&ph, &block.c) != block.id {

@@ -1,5 +1,11 @@
 # Multi-node testnet v1 — candidate A (E6 gate)
 
+> **Status: superseded** (2026-10-09) by [chain-prototype-v2](chain-prototype-v2.md). With encoding v1 a peer chain could carry any difficulty (`bits` was neither validated nor
+> committed), timestamps were unchecked and malformed blocks could crash a node (ADR 0010). The demo
+> converged, but it did not test any of that.
+>
+> The original record follows unchanged.
+
 Date: 2026-10-09. Bin: `crates/abacus-chain/src/bin/abacus-node.rs`. A minimal **multi-process** local
 testnet: nodes listen, sync from a peer, mine, and serve their chain. No gossip, peer discovery,
 mempool or coin.
@@ -34,9 +40,8 @@ Two unit tests cover sync-convergence and ignoring a shorter chain.
 ## Scope
 
 - **Pull-based** sync only (a client fetches a peer's chain); no gossip/push, no peer discovery.
-- Single fixed `chain_id` and profile. `bits` travels inside each block but is **validated** against
-  the ancestor-derived retarget and committed in the preheader (ADR 0010); before that fix a peer
-  chain could carry any difficulty.
+- Single fixed `chain_id` and profile; difficulty (`bits`) travels inside each block, so an adopted
+  chain carries its own difficulty history.
 - No mempool, transactions, rewards or signatures.
 - Genesis is an all-zero prev id; the first block is height 0.
 
@@ -46,13 +51,6 @@ Local nodes with two miner processes, sync and convergence pass — the E6 miles
 `01-ABACUS-RESEARCH-PLAN.md`. E7 (external testnet on separate operators/machines/networks) is not
 attempted; it also requires resource rules, transaction rules and independent review, none of which
 exist.
-
-## Hardening after the review (ADR 0010)
-
-Bounded line reads, socket timeouts, a 64-connection cap, no lock held while serving or mining,
-lock-free fetch/validate, periodic `--resync SEC`, median-time-past timestamps and a 120 s future
-bound on submissions. The demo commands above are unchanged; the printed `work` is now an exact
-integer and a `miners` array reports per-extranonce accepted / stale / rejected counts.
 
 ## Next
 

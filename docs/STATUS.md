@@ -1,80 +1,49 @@
 # Research status
 
-Date: 2026-10-09 (updated after the first code review, ADR 0009/0010). Phase: candidate A work-model
-calibration; chain prototype frozen at the E6 gate.
+Date: 2026-10-09. Phase: construction and prototype complete for candidate A; the central question
+has a written assessment (`docs/ASSESSMENT.md`); the next step is a decision on which distinguishing
+property to test.
 
-English is primary.
+## Results
+
+- **Candidate A (spec/03)** is a sound permissionless PoW at the construction level: header-derived
+  instance (no screening, no reuse), Fiat–Shamir Freivalds verification with per-challenge error
+  `<= 2^-63` (ADR 0009); a full block check takes ~19 ms at `n = 256` on one CPU core, about 1/5 of a
+  naive CPU product, dominated by instance expansion (`verifier-throughput-v2`).
+  Recorded limits: no usefulness, ASIC-friendly, `8 n^2`-byte blocks, linear algebra adds cost but
+  not security (`ASSESSMENT.md`).
+- **Candidate A' (spec/04)**: the one-word gather is compute-bound; a nonlinear large-slice gather is
+  bandwidth-bound for a tuned miner (ADR 0011), which turns A' into an Ethash-class bandwidth PoW. A
+  linear fold is broken by prefix sums (ADR 0010).
+- **Candidates B and C**: verifiers only; B's verification advantage is a `log n` factor (ADR 0003).
+- Research record and current notes: `docs/research/README.md`.
 
 ## Implemented
 
-- Transparent Python reference verifier: Freivalds matrix-product verification over Goldilocks
-  (`P = 2**64 - 2**32 + 1`), with field helpers, `matmul`, `matvec` and a deterministic RNG.
-- Independent Rust verifier (`crates/abacus-verifier`) with explicit bounds, `u128` products, shape
-  and canonicality checks that reject (never panic) on malformed input, and unit tests; a self-test
-  binary and stdin/stdout differential adapters.
-- Python/Rust parity: a 64-case Freivalds corpus, Fiat–Shamir challenge parity, and **every consensus
-  derivation** of the chain (preheader, instance, product, score, block id, FS challenges, A'
-  dataset, gather indices, gathered instance, sumcheck transcript) via `abacus-vectors`
-  (`tests/test_chain_parity.py`); `reference/chain.py` is the single Python reference.
-- Goldilocks field, NTT and a **Fiat–Shamir** sumcheck (verifier-derived challenges), in Python and
-  Rust, with primitivity, round-trip/linearity, completeness, soundness and zero-challenge-forgery
-  tests.
-- Candidate A assessment and work model (ADR 0005); the Fiat–Shamir Freivalds binding (ADR 0004)
-  with commit-then-expand (ADR 0006) over `(preheader, C)`; the corrected soundness bound
-  `<= 2^-63` per challenge, `k = 2..3` suggested (ADR 0009, `scripts/freivalds_soundness_probe.py`).
-  Falsifier probes: instance structure, omega, Freivalds forgery, Freivalds soundness.
-- A toy CPU mine-and-verify loop with the chain's derivations (`scripts/mine_sim.py`).
-- **Chain prototype** (`crates/abacus-chain`): encoding v2 (difficulty committed in the preheader),
-  difficulty enforced against the ancestor-derived retarget, median-time-past timestamps, work
-  counted from the required target (`u128`), greatest-cumulative-work fork choice
-  (`docs/research/local-prototype-v1.md`).
-- **Multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync with bounded lines,
-  timeouts and a connection cap; lock-free fetch/validate; periodic `--resync`; reorg by adopting a
-  higher-work chain; a solo/pool `JOB`/`SUB` protocol with per-miner extranonce ranges and per-miner
-  accounting (`docs/research/multi-node-testnet-v1.md`). This is the E6 gate.
-- A **CPPminer backend** (`--algo abacus`, branch `feat/abacus-backend` in `danifest751/CPPminer`),
-  updated to encoding v2 and verified end to end on the CMP against this node: solo, pool with
-  per-miner/stale accounting, and A' solo (ADR 0010, `docs/research/cppminer-backend-v1.md`).
-- ASIC posture and candidate A' (ADR 0007, 0008, spec/04): a data-dependent epoch dataset
-  (`reference/memhard_dataset.py`, `build_dataset`), a balance probe
-  (`docs/research/memhard-balance-v1.md`) and a gather-bandwidth probe
-  (`docs/research/gather-bandwidth-v1.md`).
-- One local check command: `python scripts/check.py`.
+- Verifiers in Python (`reference/`) and Rust (`crates/abacus-verifier`): Goldilocks field, Freivalds,
+  Fiat–Shamir challenges bound to `(preheader, C)`, NTT, Fiat–Shamir sumcheck; malformed input is
+  rejected, never panics.
+- Chain prototype (`crates/abacus-chain`, encoding v2): committed and enforced difficulty,
+  median-time-past timestamps, greatest-work fork choice, optional A' one-word gather, pull sync with
+  resource bounds, solo/pool protocol with per-miner accepted/stale/rejected accounting
+  (`chain-prototype-v2`).
+- Parity: every consensus derivation is compared Python vs Rust (`tests/test_chain_parity.py`); CUDA
+  vs Rust is checked end to end by mining into the node.
+- GPU benches (`cuda/`) and the suite runner `scripts/gpu_suite.sh` (warm, repeated, hashed); CPPminer
+  backend on encoding v2 (`cppminer-backend-v2`).
+- Probes (`scripts/`): instance structure, work exponent, Freivalds forgery and soundness, A' balance,
+  toy mining.
+- Gate: `python scripts/check.py` — pytest, rustfmt, clippy with warnings as errors, Rust tests,
+  self-test.
 
-The ordinary check gate uses standard libraries; the Rust crates have no third-party dependencies.
-No GPU job, paid CI or GitHub Actions. Experiments write to an ignored `artifacts/`.
+## Not done
 
-## GPU
-
-- `cuda/goldilocks_matmul_bench.cu` — Goldilocks matmul throughput baseline on the CMP 50HX (sm_75):
-  ~166–204 GMAC/s warm with a naive tiled kernel (the earlier 44–64 was cold-clock); ~1250x a naive
-  single-threaded CPU at n=512. A **throughput baseline**, not a matched D5 comparison
-  (`docs/research/gpu-baseline-v1.md`).
-- `cuda/gather_bench.cu` — warm cooperative gathered reads ~416 GB/s.
-- `cuda/attempt_bench.cu` — A' attempt rate. v1 withdrawn; **v2 measured**
-  (`docs/research/attempt-rate-v2.md`): the prefix-sum attack on the v1 linear fold is 14–466x
-  faster than honest mining; the nonlinear fold has no honest-side cost; the naive gather is
-  ~55–62 GB/s (a tuned cooperative gather is not measured).
-
-## Open findings (not claims)
-
-- **A' is not shown to be memory-hard.** One block per entry is compute-bound (ADR 0008); the
-  large-slice result was withdrawn (ADR 0010). Storage need is `8 * N` bytes, and no time-memory
-  trade-off analysis exists.
-- **D5 is not done.** Only a throughput point exists; the matched energy x time CPU/GPU comparison
-  that D5 requires has not been run.
-- **D6 (nonlinear anchor) is not done.**
-- The `(n, D, k)` profile must be re-derived under ADR 0009 (the verifier bench is re-run:
-  `k = 2` costs ~5% of the CPU work at `n = 256`).
-
-## Not implemented (by scope)
-
-- No coin, rewards, transactions, mempool, signatures or wallets.
-- No gossip, peer discovery, rate limiting or peer scoring; no external testnet (E7).
-- No production miner; no external cryptographic review yet.
+- **D5** (matched CPU/GPU, energy x time) and **D6** (nonlinear anchor for external data).
+- A parameter profile `(n, bits, k)`; proof-size reduction; dataset time–memory analysis for A'.
+- External cryptographic review of the current state.
+- By scope: no coin, rewards, transactions, signatures, gossip or external testnet.
 
 ## Next
 
-Per `docs/CRITICAL-PATH.md`: (1) fix the `(n, D, k)` profile under ADR 0009; (2) the matched CPU/GPU
-D5 scope (energy x time, multi-threaded CPU); (3) the D6 anchor note. Chain, pool and CPPminer work
-stays parked (CRITICAL-PATH §6).
+Choose one of the three directions in `ASSESSMENT.md` ("What would change the answer") and run its
+experiments; if none yields a property hash-based PoW lacks, publish the neutral result.

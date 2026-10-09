@@ -23,9 +23,7 @@ fn main() {
         abacus_verifier::ntt::inverse(&abacus_verifier::ntt::forward(&a)) == a
     };
     let sc_ok = {
-        let table: Vec<u64> = (0..64u64)
-            .map(|i| (i * i + 3) % abacus_verifier::goldilocks::P)
-            .collect();
+        let table: Vec<u64> = (0..64u64).map(|i| (i * i + 3) % abacus_verifier::goldilocks::P).collect();
         let (claimed, rounds) = abacus_verifier::sumcheck::prove(&table, 6);
         abacus_verifier::sumcheck::verify(&table, 6, claimed, &rounds)
     };

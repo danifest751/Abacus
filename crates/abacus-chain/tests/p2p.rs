@@ -106,7 +106,10 @@ fn sync_memory_hard_chain_with_same_dataset() {
     assert_eq!(b.tip(), a.tip());
 }
 
-fn start_pool(p: Profile, id: [u8; 32]) -> (std::net::SocketAddr, std::sync::Arc<std::sync::Mutex<Chain>>, std::sync::Arc<p2p::PoolStats>) {
+fn start_pool(
+    p: Profile,
+    id: [u8; 32],
+) -> (std::net::SocketAddr, std::sync::Arc<std::sync::Mutex<Chain>>, std::sync::Arc<p2p::PoolStats>) {
     use std::sync::{Arc, Mutex};
     let shared = Arc::new(Mutex::new(Chain::new(p, id, 1)));
     let stats = Arc::new(p2p::PoolStats::default());
@@ -172,7 +175,8 @@ fn pool_rejects_nonce_outside_extranonce_and_future_timestamp() {
     // A valid block, but in another miner's nonce range.
     let other = p2p::nonce_base(job.extranonce + 1);
     let (nonce, c, _) =
-        mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, other, 1_000_000, None).unwrap();
+        mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, other, 1_000_000, None)
+            .unwrap();
     assert_eq!(rpc(&mut w, &mut r, &format!("SUB {}", p2p::encode_sub(nonce, job.timestamp, &c))), "BAD");
 
     // A valid block in range, but with a timestamp far in the future.
@@ -203,7 +207,8 @@ fn per_miner_stats_are_separate() {
         let cp = Profile { n: 4, k: 4, bits: job.bits };
         let base = p2p::nonce_base(job.extranonce);
         let (nonce, c, _) =
-            mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, base, 1_000_000, None).unwrap();
+            mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, base, 1_000_000, None)
+                .unwrap();
         assert!(rpc(&mut w, &mut r, &format!("SUB {}", p2p::encode_sub(nonce, job.timestamp, &c))).starts_with("OK"));
         ens.push(job.extranonce);
     }
@@ -220,12 +225,16 @@ fn decode_rejects_trailing_bytes_and_bounded_reader_rejects_long_lines() {
     assert_eq!(p2p::decode_block(&enc), Some(blk));
     assert!(p2p::decode_block(&format!("{enc}00")).is_none());
 
-    let long = "x".repeat(100) + "
+    let long = "x".repeat(100)
+        + "
 ";
     let mut r = std::io::BufReader::new(long.as_bytes());
     assert!(p2p::read_line_bounded(&mut r, 50).is_err());
-    let mut r = std::io::BufReader::new("ok
-".as_bytes());
+    let mut r = std::io::BufReader::new(
+        "ok
+"
+        .as_bytes(),
+    );
     assert_eq!(p2p::read_line_bounded(&mut r, 50).unwrap().as_deref(), Some("ok"));
 }
 
@@ -236,7 +245,16 @@ fn sync_rejects_peer_block_with_wrong_c_length_without_panicking() {
     let c = vec![0u64; 3];
     let bits = tmpl.next_bits();
     let ph = preheader(&tmpl.chain_id, 1, 0, &tmpl.tip(), 10, bits, 0);
-    let bad = Block { height: 0, prev: tmpl.tip(), timestamp: 10, bits, nonce: 0, score: score(&ph, &c), id: block_id(&ph, &c), c };
+    let bad = Block {
+        height: 0,
+        prev: tmpl.tip(),
+        timestamp: 10,
+        bits,
+        nonce: 0,
+        score: score(&ph, &c),
+        id: block_id(&ph, &c),
+        c,
+    };
     let addr = serve_once(vec![bad]);
     let mut b = tmpl.clone();
     assert_eq!(p2p::sync_from(&mut b, &addr.to_string()).unwrap(), 0);
@@ -251,7 +269,8 @@ fn sync_rejects_peer_chain_with_lowered_difficulty() {
     let p = Profile { n: 4, k: 4, bits: 1 };
     let (nonce, c, sc) = mine(&p, &tmpl.chain_id, 1, 0, &tmpl.tip(), 10, 1000, None).unwrap();
     let ph = preheader(&tmpl.chain_id, 1, 0, &tmpl.tip(), 10, 1, nonce);
-    let easy = Block { height: 0, prev: tmpl.tip(), timestamp: 10, bits: 1, nonce, id: block_id(&ph, &c), c, score: sc };
+    let easy =
+        Block { height: 0, prev: tmpl.tip(), timestamp: 10, bits: 1, nonce, id: block_id(&ph, &c), c, score: sc };
     let addr = serve_once(vec![easy]);
     let mut b = tmpl.clone();
     assert_eq!(p2p::sync_from(&mut b, &addr.to_string()).unwrap(), 0);
@@ -282,11 +301,31 @@ fn pool_counts_a_solution_for_an_outdated_job_as_stale() {
         let cp = Profile { n: 4, k: 4, bits: job.bits };
         let base = p2p::nonce_base(job.extranonce);
         let (nonce, c, _) =
-            mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, base, 1_000_000, None).unwrap();
+            mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, base, 1_000_000, None)
+                .unwrap();
         replies.push(rpc(w, r, &format!("SUB {}", p2p::encode_sub(nonce, job.timestamp, &c))));
     }
     assert!(replies[0].starts_with("OK"));
     assert_eq!(replies[1], "BAD stale");
     assert_eq!(shared.lock().unwrap().height(), 1);
     assert_eq!(stats.snapshot(), vec![ms(jobs[0].extranonce, 1, 0, 0), ms(jobs[1].extranonce, 0, 1, 0)]);
+}
+
+#[test]
+fn sync_rejects_peer_block_from_the_future() {
+    use abacus_chain::{block_id, mine, preheader, Block};
+    let tmpl = Chain::new(profile(), [12u8; 32], 1);
+    let far = p2p::now() + 10 * p2p::MAX_FUTURE_DRIFT;
+    let p = Profile { n: 4, k: 4, bits: tmpl.next_bits() };
+    let (nonce, c, sc) = mine(&p, &tmpl.chain_id, 1, 0, &tmpl.tip(), far, 1_000_000, None).unwrap();
+    let ph = preheader(&tmpl.chain_id, 1, 0, &tmpl.tip(), far, p.bits, nonce);
+    let blk =
+        Block { height: 0, prev: tmpl.tip(), timestamp: far, bits: p.bits, nonce, id: block_id(&ph, &c), c, score: sc };
+    // The block is valid by consensus rules alone ...
+    assert!(tmpl.clone().append_checked(blk.clone()));
+    // ... but a syncing node refuses a chain that runs ahead of its clock.
+    let addr = serve_once(vec![blk]);
+    let mut b = tmpl.clone();
+    assert_eq!(p2p::sync_from(&mut b, &addr.to_string()).unwrap(), 0);
+    assert_eq!(b.height(), 0);
 }

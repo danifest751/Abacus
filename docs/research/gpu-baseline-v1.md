@@ -1,5 +1,12 @@
 # GPU baseline v1 — Goldilocks matmul (candidate A)
 
+> **Status: superseded** (2026-10-09) by [gpu-suite-v1](gpu-suite-v1.md). This run timed one launch on a cold GPU: the CMP idle governor kept the clocks low, so the
+> 44-64 GMAC/s are ~4x low (warm: 168-179 GMAC/s). The "D5" section is not a D5 result: one naive
+> single-threaded CPU point, no energy measurement. "A tensor-core int8 GEMM would be far faster" does
+> not apply to 64-bit Goldilocks arithmetic (ADR 0008).
+>
+> The original record follows unchanged.
+
 Date: 2026-10-09. Host: local server, **CMP 50HX** (Turing, sm_75), CUDA 13.3. Kernel:
 `cuda/goldilocks_matmul_bench.cu` (naive 16x16 tiled shared-memory matmul over Goldilocks,
 `P = 2**64 - 2**32 + 1`). CPU baseline: naive triple loop, `unsigned __int128` modular reduce.
@@ -29,45 +36,24 @@ Date: 2026-10-09. Host: local server, **CMP 50HX** (Turing, sm_75), CUDA 13.3. K
 
 ## Caveats
 
-- The GPU kernel is deliberately simple, so 44 GMAC/s is a **floor**, not a tuned number. Tensor
-  cores do not apply to 64-bit Goldilocks arithmetic (ADR 0008); a faster kernel needs better
-  tiling/reduction, not int8. The CPU baseline is a naive loop, not BLAS — the 415x is
+- The GPU kernel is deliberately simple; a tensor-core int8 GEMM would be far faster, so 44 GMAC/s is
+  a **floor**, not a tuned number. The CPU baseline is a naive loop, not BLAS — the 415x is
   illustrative, not a rigorous hardware ranking.
 - This is a **throughput baseline**, not a work model, miner or consensus. It makes no claim about
   difficulty, reuse or the existence of a work function.
 
-## D5 — matched CPU/GPU work rate (candidate A) — NOT a D5 result
-
-> **Correction (2026-10-09 review).** This section does not meet the D5 definition of
-> `docs/CRITICAL-PATH.md` §4 (matched domain/caps/output/timer, energy x time). It has a single CPU
-> point (n=512, naive, single-threaded), one timed GPU launch, and no energy measurement; a constant
-> factor cannot be read from one point. Treat it as a throughput observation only.
+## D5 — matched CPU/GPU work rate (candidate A)
 
 Same field (Goldilocks), same machine (CMP 50HX), same kernel family (dense `n x n` product):
 
 - n = 512: GPU 63.8 GMAC/s vs **naive CPU 0.154 GMAC/s → ~415x**.
 - The GPU rate is roughly flat (44-64 GMAC/s) across n; the CPU rate is ~0.15 GMAC/s.
 
-Original interpretation (not supported by one point, see the correction above): the GPU advantage is
-a **constant factor**, not a superlinear break, so the work function stays **portable** across CPU and GPU (the D5 threat — a memory-rich device winning
+Interpretation: the GPU advantage is a **constant factor**, not a superlinear break, so the work
+function stays **portable** across CPU and GPU (the D5 threat — a memory-rich device winning
 superlinearly — does not fire for dense matmul). Caveat: the CPU baseline is naive; BLAS/Strassen
 would narrow the constant, and Strassen also lowers the work exponent (see `omega_probe.py`), but
 neither is superlinear in the way that would break monotonicity.
-
-## Warm re-measurement (2026-10-09, review)
-
-Same source (sha256 `159270b1…`), same card, after a 4 s GPU warm-up so the `cmp-idle-governor` has
-raised the clocks (SM 1950–1965 MHz, ~170 W). Three runs each, spread < 1%:
-
-| n | GPU s | GPU GMAC/s | CPU GMAC/s (naive, 1 thread) | GPU / CPU |
-|---:|---:|---:|---:|---:|
-| 512 | 0.000700 | 191.7 | 0.153 | 1250x |
-| 1024 | 0.005274 | 203.6 | — | — |
-| 2048 | 0.051780 | 165.9 | — | — |
-
-The table above (44–64 GMAC/s) was a **cold-clock** run, ~4x low — the same artifact as in
-`gather-bandwidth-v1.md`. Use ~190 GMAC/s for the naive kernel. This does not change the D5
-status: one naive single-threaded CPU point and no energy measurement.
 
 ## Next (GPU)
 

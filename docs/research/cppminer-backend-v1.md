@@ -1,16 +1,12 @@
 # CPPminer backend v1 — `--algo abacus` (candidate A) on CUDA
 
-Date: 2026-10-09. Repo: `danifest751/CPPminer`, branch `feat/abacus-backend` (from `ca259ff`).
-
-> **Compatibility (ADR 0010).** The sections below up to "Encoding v2" were measured against
-> encoding **v1**. CPPminer is now on **v2** (see the last section). The "GPU dataset ...
-> data-dependent chain" below was index-dependent only in v1.
+> **Status: superseded** (2026-10-09) by [cppminer-backend-v2](cppminer-backend-v2.md). Encoding v1. In the A' mock table `--dataset` was a block count, not MiB (the "1 GiB" runs used
+> 1024 blocks = 32 KiB), `--seg` was never used by the kernel, and the reported gather GB/s counted
+> 32 bytes per element although 8 are read. The pool's "0 stale" counted only accepted submissions.
 >
-> **Correction to the A' mock table.** `--dataset` was always a **block count** (32-byte blocks), not
-> MiB, and `--seg` was parsed but never used by the kernel. The "dataset 1 GiB, seg 4 KiB / 64 KiB"
-> rows therefore ran on 1024 blocks (32 KiB) with identical kernels; their difference and the
-> "gather dominates" reading are not supported. The `gather GB/s` column also counted 32 bytes per
-> element although 8 are read.
+> The original record follows unchanged.
+
+Date: 2026-10-09. Repo: `danifest751/CPPminer`, branch `feat/abacus-backend` (from `ca259ff`).
 
 The Abacus PoW (candidate A) is integrated into CPPminer as a new algorithm:
 
@@ -19,7 +15,7 @@ The Abacus PoW (candidate A) is integrated into CPPminer as a new algorithm:
   parser rejects abacus flags), `CMakeLists.txt`.
 - `src/abacus/cp_abacus.{cpp,cu}`: argument handling and a CUDA **mock** nonce search.
 
-## Encoding v1 (matched the Abacus prototype byte-for-byte before ADR 0010)
+## Encoding (matches the Abacus prototype byte-for-byte)
 
 ```
 preheader = "abacus/ph" || chain_id(32) || version(u32 LE) || prev(32) || height(u64 LE)
@@ -91,8 +87,8 @@ node:    {"height": 91, "work": 13568, ...}
 
 Two clients grew one chain to 91 blocks. Some found blocks are stale (both clients may mine the same
 height before either submits, and the second `SUB` is rejected on a prev-id mismatch) — expected
-prototype behaviour; a real pool needs per-client difficulty and stale handling. (Superseded by the
-extranonce change below; per-miner accounting now exists in the node, ADR 0010. No payout exists.)
+prototype behaviour; a real pool needs per-client difficulty and stale handling. No share accounting
+or payout exists.
 
 ## Candidate A' memory-hard path (mock)
 
@@ -149,38 +145,14 @@ count instead of one thread per element, leaving most of `A`, `B` unwritten).
 
 ## Not implemented
 
-- **Pool mining**: one node serves several miners with per-miner extranonce ranges and per-miner
-  accounting of accepted blocks; there is no share target below the block target, no difficulty
-  negotiation and no payout.
+- **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
+  negotiation or multi-client pool).
 - GPU-side instance expansion and score hashing (host-side today, which bounds the attempt rate at
   small `n`).
-- The A' gather is wired into CPPminer (above) but not yet updated to encoding v2.
-
-## Encoding v2 (2026-10-09, ADR 0010) — verified
-
-Changes in `src/abacus/cp_abacus.{cu,cpp}`, `include/cp_abacus.h`: `bits` (u32 LE) in the preheader
-between `timestamp` and `nonce` (mock and solo); data-dependent dataset reference
-`ref(u) = LE64(blk[u-1][0..8]) mod u` on the host and in `dataset_chain_kernel`; `--dataset` is
-explicitly a block count (`long long`); `--seg` removed (warns if passed); the A' mock reports
-8 bytes read per gathered element.
-
-End to end on the CMP 50HX against `abacus-node` at Abacus HEAD (`n = 64`, `bits = 4` start):
-
-| mode | miner | node |
-|---|---|---|
-| solo, 10 s | jobs=97 found=96 | height 96; 96 accepted, 0 stale, 0 rejected |
-| A' solo, dataset 8000 blocks, 10 s | jobs=91 found=90 | height 90; 90 accepted, 0 stale, 0 rejected |
-| pool, two miners, 8 s | found 41 + 43 | height 84; accepted 41 + 43, stale 38 + 40, rejected 0 |
-
-Every accepted block passed the node's v2 checks (committed `bits` equal to the retarget, MTP
-timestamp, extranonce range, FS Freivalds), so the CUDA preheader, instance, score and A' dataset
-match the Rust chain byte for byte. Difficulty rose during the runs (work 16128 for 96 blocks), i.e.
-the enforced retarget reacted to fast blocks. In the pool every losing submission is stale (the other
-miner won the height); none is invalid. The earlier "0 stale" pool figure counted only accepted
-submissions. Script: `~/v2_e2e.sh` on the server.
+- The A' memory-hard gather is not wired into the CPPminer path yet.
 
 ## Next
 
-1. Nothing on the critical path; CPPminer stays parked (CRITICAL-PATH §6).
+1. Pool: share accounting and many miners against one node.
 2. GPU-side expand/score; larger `n`.
 3. A' memory-hard gather in the CPPminer backend.

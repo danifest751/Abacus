@@ -1,6 +1,6 @@
 # Abacus Network — verifiable GPU-algebra proof of work
 
-Initial research plan. Version: 0.1. Date: 2026-10-09.
+Research plan. Version: 0.2 (2026-10-09; v0.1 the same day, revisions in §16).
 Status: **research plan — not a completed protocol, network, coin or security claim.**
 Working label: "Verifiable Algebra PoW" (VAP). Project name: **Abacus**.
 
@@ -18,8 +18,9 @@ hypothesis**:
 
 Verification of a *claimed* result is cheap and provable:
 - **Freivalds' algorithm** for matmul: check `A·(B·r) == C·r` for random `r` — `O(n²)` vs
-  `O(n³)`, error ≤ 1/2 (amplified with a few vectors);
-- **Sumcheck / GKR** for NTT and other layered linear maps — `O(log n)` verification;
+  `O(n^ω)`, error ≤ 1/P for `r` uniform over the field (ADR 0009);
+- **Sumcheck / GKR** for NTT and other layered linear maps — `O(n)` rounds plus one evaluation, sublinear
+  only with a commitment opening;
 - **KZG pairing checks** for MSM-derived commitments — a constant number of pairings.
 
 A useful instantiation exists: if the work is *the proving computation itself*, the PoW has a
@@ -38,7 +39,8 @@ For lattice/SIS PoW the GPU advantage is unproven; for Abacus it is not. Dense m
 MSM are the most GPU-bound operations in all of cryptography:
 - every zk-SNARK/STARK prover is bottlenecked on **MSM and NTT**, both dominated by memory
   bandwidth and tensor-core throughput;
-- int8/FP16 matmul is the canonical tensor-core workload.
+- int8/FP16 matmul is the canonical tensor-core workload (exact large-field arithmetic, as used here,
+  runs on ordinary integer units instead — ADR 0008).
 
 Therefore the hardware story is settled a priori: the research is **not** "does the GPU win",
 but "**can a linear, GPU-optimal computation be turned into a permissionless puzzle.**"
@@ -76,8 +78,8 @@ dependency. **Characterising and minimising this anchor is the core of the proje
   target is compared against a hash of the transcript; the verifier checks `C` with Freivalds.
   Open problem: linearity (decomposition/precompute) — must add an anchor.
 - **B. Sumcheck/GKR NTT PoW.** Header → random field element / evaluation domain; miner computes
-  a large NTT and emits a sumcheck transcript; the verifier checks it in `O(log n)`; a target on
-  the transcript hash sets difficulty. Reuse and instance selection must be bounded.
+  a large NTT and emits a sumcheck transcript; the verifier checks its rounds (sublinear only with a
+  commitment opening); a target on the transcript hash sets difficulty. Reuse and instance selection must be bounded.
 - **C. MSM PoW with KZG verification.** Header → scalars/points; miner computes an MSM and a
   commitment; the verifier runs pairing checks. Closest to "useful proving"; linearity and the
   need for a random challenge are the open problems.
@@ -160,16 +162,13 @@ p95 ≤ 10 ms on an ordinary CPU; proof ≤ 16 KiB (engineering screens, not pro
 ## 11. Project layout
 
 ```
-spec/                 mathematical and protocol specifications
-reference/            transparent Python verifier and bounded probes
-crates/               independent Rust verifier
-cuda/                 GPU kernels (matmul / NTT / MSM)
-reference-solvers/    CPU baselines
-simulator/            chain, difficulty and fork experiments
-tests/vectors/        fixed fixtures
-tests/adversarial/    regression corpus
-benchmarks/           pinned experiments
-docs/                 status, threat model, decisions
+spec/        mathematical and protocol specifications
+reference/   transparent Python reference and probes' building blocks
+crates/      Rust verifier (abacus-verifier) and chain prototype (abacus-chain)
+cuda/        GPU benches
+scripts/     check gate, GPU suite, probes
+tests/       Python tests, Python/Rust differential and parity
+docs/        assessment, critical path, status, threat model, decisions, research record
 ```
 
 ## 12. Milestones and gates
@@ -186,6 +185,12 @@ docs/                 status, threat model, decisions
 | E7 | External testnet and published artifacts | Blocking findings closed; complete resource rules |
 
 Testnet does not imply coin value. Estimate E2/E3 effort from data, not from this plan.
+
+Status (2026-10-09): E0–E2 done for candidate A; E3 has a written assessment (`docs/ASSESSMENT.md`)
+but no external review; E4 not started beyond the prototype retarget; E5 has GPU throughput and a GPU
+miner but no matched hardware/energy comparison; E6 local nodes, sync, reorg and two miner processes pass (restart is not demonstrated: no
+persistence); E7 not
+attempted.
 
 ## 13. Stop or revise when
 
@@ -215,3 +220,9 @@ Use "experimental Verifiable Algebra PoW" until specific claims have adequate ev
 - KZG polynomial commitments (Kate–Zaverucha–Goldberg) — pairing-based verification.
 - Pearl / `proofs of useful work from matmul` — prior art on matmul PoW (and its noising anchor).
 - CuPOW / Qubic / Bittensor — prior art on "useful work" (for contrast; neither is this design).
+
+## 16. Revisions
+
+- v0.2 (2026-10-09): Freivalds error is `≤ 1/P` per uniform field challenge, not `1/2` (ADR 0009);
+  sumcheck verification is not `O(log n)` without a commitment; tensor cores do not apply to the exact
+  field arithmetic; layout and stage status updated. The plan's other text is unchanged.

@@ -1,6 +1,8 @@
 # ADR 0002 — Candidate work functions and their falsifiers
 
 Status: accepted research constraint; no consensus parameters selected.
+Amended: the header-derived challenge `r` for candidate A is forgeable; challenges are
+Fiat–Shamir bound to `(preheader, C)` (ADR 0004, 0006).
 
 ## Context
 

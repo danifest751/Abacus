@@ -6,15 +6,17 @@
 //
 // v2 (ADR 0010): the segment fold is a **nonlinear, sequential** mix. v1 summed the segment, which a
 // miner answers with two prefix-sum reads (precomputed once per epoch), so v1 did not measure a
-// memory-hard gather. The gather is still one thread per entry (uncoalesced); a warp-cooperative
-// gather is the honest-miner baseline and is not implemented here. v1 numbers are withdrawn
-// (docs/research/attempt-rate-v1.md); v2 results are in docs/research/attempt-rate-v2.md. Modes 1/2
-// reproduce the v1 fold and the prefix-sum attack on it. Timing uses CUDA events after a warm-up.
+// memory-hard gather. Modes 0-2 use one thread per entry (uncoalesced, naive); mode 3 is the
+// warp-cooperative gather of a tuned honest miner. v1 numbers are withdrawn
+// (docs/research/attempt-rate-v1.md); results are in docs/research/gpu-suite-v1.md. Modes 1/2
+// reproduce the v1 fold and the prefix-sum attack on it. Timing: CUDA events after a warm-up; median of `reps` batches.
 //
 // Build: nvcc -O3 -arch=sm_75 attempt_bench.cu -o attempt_bench
-// Run:   ./attempt_bench [n] [seg_bytes] [dataset_MiB] [attempts] [fold 0=mix|1=sum|2=prefix] [warm_s]
+// Run:   ./attempt_bench [n] [seg_bytes] [dataset_MiB] [attempts] [fold 0=mix|1=sum|2=prefix|3=coop] [warm_s] [reps]
 
+#include <algorithm>
 #include <cstdio>
+#include <vector>
 #include <cstdlib>
 #include <cuda_runtime.h>
 #include <chrono>
@@ -46,8 +48,11 @@ __device__ __forceinline__ unsigned long long mix64(unsigned long long x) {
 
 // Fold modes: 0 = sequential nonlinear mix (v2, every word must be read);
 //             1 = plain u64 sum (v1, linear);
-//             2 = the prefix-sum attack on mode 1: two reads per entry from a prefix table.
-enum { FOLD_MIX = 0, FOLD_SUM = 1, FOLD_PREFIX = 2 };
+//             2 = the prefix-sum attack on mode 1: two reads per entry from a prefix table;
+//             3 = warp-cooperative nonlinear fold (tuned honest miner): one warp per entry, coalesced
+//                 reads, each lane mixes its strided words, then a nonlinear tree combine. Not
+//                 prefix-decomposable either.
+enum { FOLD_MIX = 0, FOLD_SUM = 1, FOLD_PREFIX = 2, FOLD_COOP = 3 };
 
 // Gather one field element per A entry from a random `seg`-byte dataset segment.
 __global__ void gather_A(const unsigned long long* __restrict__ D, unsigned long long dwords,
@@ -69,6 +74,25 @@ __global__ void gather_A(const unsigned long long* __restrict__ D, unsigned long
         acc = p[segw] - p[0]; // D read as the per-epoch prefix table: sum(D[off..off+segw))
     }
     A[i] = acc % P;
+}
+
+// One warp per A entry: coalesced segment read with a nonlinear per-lane chain and a nonlinear
+// butterfly combine (the result is a function of every word of the segment).
+__global__ void gather_A_coop(const unsigned long long* __restrict__ D, unsigned long long dwords,
+                              unsigned long long* __restrict__ A, int n, int seg, unsigned long long seed) {
+    const int warp = (blockIdx.x * blockDim.x + threadIdx.x) >> 5;
+    const int lane = threadIdx.x & 31;
+    const int total = n * n;
+    if (warp >= total) return;
+    unsigned long long h = (seed + 1) * 0x9E3779B97F4A7C15ULL + (unsigned long long)warp * 0xD1B54A32D192ED03ULL;
+    h ^= h >> 29;
+    const unsigned long long segw = (unsigned long long)(seg / 8);
+    const unsigned long long off = (h % (dwords - segw - 1)) & ~1ULL;
+    const unsigned long long* p = D + off;
+    unsigned long long acc = (unsigned long long)lane;
+    for (unsigned long long k = lane; k < segw; k += 32) acc = mix64(acc ^ p[k]);
+    for (int d = 16; d > 0; d >>= 1) acc = mix64(acc ^ __shfl_xor_sync(0xFFFFFFFFu, acc, d) ^ (unsigned long long)d);
+    if (lane == 0) A[warp] = acc % P;
 }
 
 // Fill the dataset with pseudo-random words (v1 used a constant 0x5A fill).
@@ -94,7 +118,20 @@ __global__ void matmul(const unsigned long long* __restrict__ A, const unsigned 
     C[row * n + col] = acc;
 }
 
-static const char* fold_name(int f) { return f == FOLD_MIX ? "mix" : f == FOLD_SUM ? "sum" : "prefix"; }
+static const char* fold_name(int f) {
+    return f == FOLD_MIX ? "mix" : f == FOLD_SUM ? "sum" : f == FOLD_PREFIX ? "prefix" : "coop";
+}
+
+static void gather(const unsigned long long* D, unsigned long long dwords, unsigned long long* A, int n, int seg,
+                   unsigned long long seed, int fold) {
+    const int total = n * n;
+    if (fold == FOLD_COOP) {
+        const int threads = 256, blocks = (int)(((long long)total * 32 + threads - 1) / threads);
+        gather_A_coop<<<blocks, threads>>>(D, dwords, A, n, seg, seed);
+    } else {
+        gather_A<<<(total + 255) / 256, 256>>>(D, dwords, A, n, seg, seed, fold);
+    }
+}
 
 int main(int argc, char** argv) {
     int n = argc > 1 ? atoi(argv[1]) : 256;
@@ -103,6 +140,7 @@ int main(int argc, char** argv) {
     int attempts = argc > 4 ? atoi(argv[4]) : 64;
     int fold = argc > 5 ? atoi(argv[5]) : FOLD_MIX;
     double warm_s = argc > 6 ? atof(argv[6]) : 3.0;
+    int reps = argc > 7 ? atoi(argv[7]) : 7;
 
     unsigned long long db = (unsigned long long)ds_mib * 1024 * 1024;
     unsigned long long dwords = db / 8;
@@ -113,13 +151,13 @@ int main(int argc, char** argv) {
     cudaMemset(B, 0x11, (size_t)n * n * 8);
 
     int total = n * n;
-    int block = 256, grid = (total + block - 1) / block;
+    (void)total;
     dim3 mblock(TS, TS), mgrid(n / TS, n / TS);
 
     // Warm-up: keep the GPU busy for warm_s seconds so the idle governor has raised the clocks.
     auto w0 = std::chrono::high_resolution_clock::now();
     for (unsigned long long a = 0;; ++a) {
-        gather_A<<<grid, block>>>(D, dwords, A, n, seg, a, fold);
+        gather(D, dwords, A, n, seg, a, fold);
         matmul<<<mgrid, mblock>>>(A, B, C, n);
         cudaDeviceSynchronize();
         if (std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - w0).count() >= warm_s) break;
@@ -127,28 +165,36 @@ int main(int argc, char** argv) {
 
     cudaEvent_t e0, e1;
     cudaEventCreate(&e0); cudaEventCreate(&e1);
-    float ms_gather = 0, ms_matmul = 0, ms_total = 0;
-    cudaEventRecord(e0);
-    for (int a = 0; a < attempts; ++a) gather_A<<<grid, block>>>(D, dwords, A, n, seg, 1000 + a, fold);
-    cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&ms_gather, e0, e1);
-    cudaEventRecord(e0);
-    for (int a = 0; a < attempts; ++a) matmul<<<mgrid, mblock>>>(A, B, C, n);
-    cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&ms_matmul, e0, e1);
-    cudaEventRecord(e0);
-    for (int a = 0; a < attempts; ++a) {
-        gather_A<<<grid, block>>>(D, dwords, A, n, seg, 5000 + a, fold);
-        matmul<<<mgrid, mblock>>>(A, B, C, n);
+    // Each repetition times a batch of `attempts` gathers, matmuls and full attempts; medians reported.
+    std::vector<double> gs, ms, ts;
+    for (int r = 0; r < reps; ++r) {
+        float mg = 0, mm = 0, mt = 0;
+        const unsigned long long base = 1000ULL * (r + 1) * attempts;
+        cudaEventRecord(e0);
+        for (int a = 0; a < attempts; ++a) gather(D, dwords, A, n, seg, base + a, fold);
+        cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&mg, e0, e1);
+        cudaEventRecord(e0);
+        for (int a = 0; a < attempts; ++a) matmul<<<mgrid, mblock>>>(A, B, C, n);
+        cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&mm, e0, e1);
+        cudaEventRecord(e0);
+        for (int a = 0; a < attempts; ++a) {
+            gather(D, dwords, A, n, seg, base + 500 + a, fold);
+            matmul<<<mgrid, mblock>>>(A, B, C, n);
+        }
+        cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&mt, e0, e1);
+        gs.push_back(mg / attempts); ms.push_back(mm / attempts); ts.push_back(mt / attempts);
     }
-    cudaEventRecord(e1); cudaEventSynchronize(e1); cudaEventElapsedTime(&ms_total, e0, e1);
+    auto med = [](std::vector<double> v) { std::sort(v.begin(), v.end()); return v[v.size() / 2]; };
+    auto lo = [](const std::vector<double>& v) { return *std::min_element(v.begin(), v.end()); };
+    auto hi = [](const std::vector<double>& v) { return *std::max_element(v.begin(), v.end()); };
+    const double g = med(gs), m = med(ms), t = med(ts); // ms per attempt
 
     double read_bytes = fold == FOLD_PREFIX ? 16.0 : (double)seg; // bytes actually read per entry
-    double s_total = ms_total / 1e3, s_gather = ms_gather / 1e3;
-    printf("{\"n\": %d, \"seg_bytes\": %d, \"dataset_MiB\": %d, \"attempts\": %d, \"fold\": \"%s\", "
-           "\"attempts_per_s\": %.1f, \"gather_ms\": %.3f, \"matmul_ms\": %.3f, "
-           "\"gather_over_matmul\": %.2f, \"read_MB_per_attempt\": %.1f, \"gather_read_GB_s\": %.1f, "
-           "\"cuda_error\": \"%s\"}\n",
-           n, seg, ds_mib, attempts, fold_name(fold), attempts / s_total, ms_gather / attempts,
-           ms_matmul / attempts, ms_gather / ms_matmul, total * read_bytes / 1e6,
-           total * read_bytes * attempts / s_gather / 1e9, cudaGetErrorString(cudaGetLastError()));
+    printf("{\"n\": %d, \"seg_bytes\": %d, \"dataset_MiB\": %d, \"attempts\": %d, \"reps\": %d, \"fold\": \"%s\", "
+           "\"attempts_per_s\": %.1f, \"attempts_per_s_min\": %.1f, \"attempts_per_s_max\": %.1f, "
+           "\"gather_ms\": %.4f, \"matmul_ms\": %.4f, \"gather_over_matmul\": %.2f, "
+           "\"read_MB_per_attempt\": %.1f, \"gather_read_GB_s\": %.1f, \"cuda_error\": \"%s\"}\n",
+           n, seg, ds_mib, attempts, reps, fold_name(fold), 1e3 / t, 1e3 / hi(ts), 1e3 / lo(ts), g, m, g / m,
+           total * read_bytes / 1e6, total * read_bytes / (g / 1e3) / 1e9, cudaGetErrorString(cudaGetLastError()));
     return 0;
 }

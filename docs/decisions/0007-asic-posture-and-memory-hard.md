@@ -1,6 +1,8 @@
 # ADR 0007 — ASIC posture and the memory-hard direction (candidate A')
 
 Status: accepted research direction. Records the ASIC tension and adopts a memory-hard variant as the
+Amended by ADR 0008, 0010 and 0011: the dataset references are now data-dependent; the large-slice
+gather needs a nonlinear fold; the A' measurements are in ADR 0011.
 default candidate.
 
 ## The tension

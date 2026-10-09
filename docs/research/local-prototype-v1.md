@@ -1,10 +1,9 @@
 # Local prototype v1 — candidate A (header-bound Freivalds matmul PoW)
 
-> **Superseded in part (2026-10-09).** This note describes the first prototype. Since then: retarget,
-> fork choice and P2P exist (`multi-node-testnet-v1.md`); the preheader also commits `timestamp` and
-> `bits` (encoding v2), difficulty is enforced and timestamps follow median-time-past (ADR 0010). The
-> output format below (`target0`) is historical.
-
+> **Status: superseded** (2026-10-09) by [chain-prototype-v2](chain-prototype-v2.md). Encoding v1 (difficulty neither committed nor enforced); retarget, fork choice and P2P were added
+> later.
+>
+> The original record follows unchanged.
 
 Date: 2026-10-09. Crate: `crates/abacus-chain`. A **minimal local prototype** of the candidate A PoW:
 mine and verify a chain of blocks. No P2P, mempool, transactions or coin.

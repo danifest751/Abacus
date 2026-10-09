@@ -18,11 +18,13 @@ dependency). Characterising and minimising this anchor is the central research p
 ## 2. Verification soundness
 
 - Freivalds accepts an incorrect product with probability at most `1/P` per vector uniform over
-  `F_P` (`<= 2^-63` with our derivation; `1/2` only for `r in {0,1}^n`, ADR 0009); challenges must be
+  `F_P` (`<= 2^-63` with our slightly non-uniform derivation; `1/2` only for `r in {0,1}^n`, ADR 0009); challenges must be
   Fiat–Shamir bound to `(preheader, C)` and never miner-chosen.
-- Sumcheck/GKR soundness depends on Fiat–Shamir transcript binding; random-oracle assumptions and
-  transcript encoding must be fixed and domain-separated. A verifier that accepts prover-supplied
-  challenges is forgeable (found and fixed, ADR 0010).
+- Sumcheck/GKR soundness depends on Fiat–Shamir transcript binding; the verifier derives every
+  challenge from the transcript. A verifier that accepts prover-supplied challenges is forgeable (any
+  sum passes with all challenges zero).
+- Encodings must be canonical: a residue `>= P` gives a second encoding of the same product, i.e. a
+  free extra score attempt.
 - A verifier checks the *result*, not that a miner performed the work. A cheater who found a
   cheaper route is indistinguishable — this is a work-accounting problem, not a verification bug.
 
@@ -51,16 +53,18 @@ fields that change the challenge and forbid free attempt fields.
 - Invalid or near-valid proofs must not be able to overload full nodes: proof size, parsing and
   worst-case acceptance/rejection cost must be bounded before variable-length parsing.
 - Snapshot/submission message caps and rate limits are required before any networking. The
-  prototype caps line length, connections and snapshot size and uses read timeouts (ADR 0010); it
-  has no rate limiting or peer scoring.
+  prototype caps line length, connections and snapshot size and uses read timeouts; it has no rate
+  limiting or peer scoring.
+- Malformed input (wrong lengths, non-canonical values) must be rejected before hashing or
+  allocation, never by an assertion.
 
-## 6a. Difficulty and time (prototype consensus)
+## 6a. Difficulty and time
 
 - The difficulty of every block must be the ancestor-derived value and must be committed in the
-  header; work is counted from the required target, never from the achieved score (ADR 0010).
+  header; work is counted from the required target, never from the achieved score.
 - Timestamps feed the retarget, so they must be bounded: greater than the median of the last 11
-  blocks, and not far in the future of the validating node. A miner-chosen timestamp is otherwise
-  a difficulty knob.
+  blocks (consensus), and not more than 120 s ahead of the validating node's clock (applied to
+  submissions and to synced blocks). A miner-chosen timestamp is otherwise a difficulty knob.
 
 ## 7. Cryptographic dependence (if the proving instantiation is pursued)
 
@@ -92,19 +96,18 @@ candidate instead of branding:
 
 Do not label the project "quantum-resistant". State the per-candidate posture above.
 
-## 10. ASIC posture (candidate A is ASIC-friendly; A' adds memory-hardness)
+## 10. ASIC posture
 
-Dense matmul is **GPU-optimal and ASIC-optimal**: a tensor-core/systolic ASIC does matmul better than
-any GPU. So "GPU-optimal" does **not** imply ASIC resistance; the property that makes candidate A
-attractive for GPUs is the same one that makes it attractive for ASICs.
+Dense matmul is **GPU-optimal and ASIC-optimal**: a dedicated multiply-accumulate array does modular
+matmul better than any GPU. "GPU-optimal" does **not** imply ASIC resistance; candidate A is
+ASIC-friendly.
 
-Mitigation (ADR 0007): **candidate A'** adds a memory-hard, data-dependent layer — a large epoch
-dataset `D` with header-random **gather** of the operands — so the bottleneck is **memory bandwidth**,
-not multiply throughput, and a fixed ASIC is obsoleted by per-epoch dataset regeneration. Threat
-questions this must answer: is the gathered access bandwidth-bound and GPU-favourable; is the work
-model monotone in bytes fetched; can gathered operands be precomputed/reused; what is the verifier's
-added dataset cost; is epoch regeneration cheap enough yet ASIC-hostile.
+Candidate A' (ADR 0007, 0011) gathers the operands from an epoch dataset. With one word per entry it
+stays compute-bound; with a **nonlinear** large-slice fold it becomes memory-bandwidth-bound for a tuned
+miner, i.e. an Ethash-class design. Threat questions it must still answer: time–memory trade-offs of
+the dataset (checkpointing, pebbling); whether an ASIC with comparable memory bandwidth wins; the
+verifier's dataset cost; whether epoch regeneration is cheap for honest nodes yet hostile to fixed
+hardware; and that no fold of a gathered segment is linear (prefix sums remove the gather).
 
-Honest caveat: memory-hard algorithms eventually get ASICs (Ethash, scrypt); agility narrows the
-window, it does not close it. The goal is a high ASIC barrier, not immunity.
-
+Memory-hard algorithms eventually get ASICs (Ethash, scrypt); agility narrows the window, it does not
+close it. No ASIC-resistance claim is made.
