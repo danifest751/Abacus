@@ -10,7 +10,7 @@ use std::time::Instant;
 fn main() {
     println!("{{\n  \"runs\": [");
     let mut first = true;
-    for &n in &[128usize, 256] {
+    for &n in &[256usize, 512, 1024] {
         for &k in &[32usize, 128] {
             let mut rng = Rng::new(1);
             let a = rng.matrix(n);
