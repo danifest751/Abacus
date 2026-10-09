@@ -61,3 +61,23 @@ security property.
 
 ASIC/FPGA resistance, post-quantum security, mainnet difficulty and coin value are **not**
 established and must not be claimed.
+
+## 9. Quantum posture (precise, not marketing)
+
+"Quantum resistance" is fashionable and mostly premature: no quantum computer breaks deployed
+cryptography today, and most projects bolt on ML-DSA for branding. Abacus states what is true per
+candidate instead of branding:
+
+- **Matmul (A) and NTT/sumcheck (B)** carry **no classical hardness assumption**. Their soundness is
+  hash-based (Freivalds over a random challenge; Fiat–Shamir transcript). They are therefore
+  **quantum-neutral**: a quantum computer does not speed up the verifier's task, and the security
+  reduces to the hash. Caveat: Grover halves the effective security of hash preimages/collisions, so
+  a hash-target rule (construction B) must size the digest for the intended PQ margin.
+- **MSM / KZG (C)** is **not** post-quantum: its security rests on ECDLP and pairings, broken by
+  Shor. Any deployment of C that claims PQ signatures/keys must be treated as a separate, unproven
+  statement.
+- A **signature/key layer** is outside the PoW primitive; if Abacus ever needs one, PQ primitives
+  (e.g. ML-DSA / SLH-DSA) are the baseline, not a feature of the work function.
+
+Do not label the project "quantum-resistant". State the per-candidate posture above.
+

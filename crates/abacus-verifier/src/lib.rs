@@ -9,7 +9,11 @@
 //! several vectors). It tests the *result*, not that a miner did the work — that gap is exactly
 //! what the research studies.
 
-/// The field modulus: `2^61 - 1`, prime.
+pub mod goldilocks;
+pub mod ntt;
+pub mod sumcheck;
+
+/// The field modulus of the matmul laboratory: `2^61 - 1`, prime.
 pub const P: u64 = 2305843009213693951;
 
 /// Reduce a `u128` modulo `P`.
