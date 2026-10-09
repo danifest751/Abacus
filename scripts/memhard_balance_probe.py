@@ -6,7 +6,8 @@ An earlier version assumed a 1e12 MAC/s tensor-core matmul. That is wrong for th
 modulus would be needed). This version uses measured-grounded rates instead.
 
 Rates (CMP 50HX, grounded):
-  gathered bandwidth BW_g = 29 GB/s (measured);
+  gathered bandwidth BW_g = 416 GB/s (measured warm, block-cooperative 64 KiB segments; the earlier
+  29 GB/s was a cold-clock artifact, see docs/research/gather-bandwidth-v1.md);
   Goldilocks field matmul ~44 GMAC/s (measured naive kernel);
   int8 matmul ~69 GMAC/s (CPPMiner Pearl rate on the CMP, for reference).
 

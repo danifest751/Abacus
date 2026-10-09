@@ -1,16 +1,30 @@
-//! Minimal line-protocol P2P for the prototype: serve a chain, sync from a peer.
+//! Minimal line-protocol P2P for the prototype: serve a chain, sync from a peer, solo/pool mining.
 //!
 //! No third-party crates. A block is hex-encoded with a fixed layout. A server writes `B <hex>` for
-//! each block (tip to genesis order irrelevant; we send oldest-first) then `E`. A client pulls all
-//! blocks, validates them into a fresh chain and adopts it only if it has strictly greater cumulative
-//! work. This is a pull-based sync; no gossip, no peer discovery.
+//! each block (oldest first) then `E`. A client pulls all blocks, validates them into a fresh chain
+//! and adopts it only if it has strictly greater cumulative work. Pull-based; no gossip, no peer
+//! discovery.
+//!
+//! Resource bounds (THREAT-MODEL §6): every line is read with a hard length cap derived from the
+//! profile, sockets have read timeouts, the number of concurrent connections is capped, and the
+//! chain lock is never held while writing to the network.
 
-use crate::{block_id, preheader, score, Block, Chain, Profile};
-use std::io::{BufRead, BufReader, Write};
+use crate::{block_id, preheader, score, Block, Chain};
+use std::collections::BTreeMap;
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// A submitted timestamp may be at most this many seconds ahead of the node's clock.
+pub const MAX_FUTURE_DRIFT: u64 = 120;
+/// Maximum number of concurrently served connections.
+pub const MAX_CONNS: usize = 64;
+/// Socket read timeout for peers and miners.
+pub const READ_TIMEOUT: Duration = Duration::from_secs(300);
+/// Maximum number of blocks accepted from one peer snapshot.
+pub const MAX_SYNC_BLOCKS: usize = 1 << 20;
 
 fn put_u64(v: &mut Vec<u8>, x: u64) {
     v.extend_from_slice(&x.to_le_bytes());
@@ -45,13 +59,38 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Encoded size in bytes of a block whose `C` has `clen` entries.
+pub fn block_bytes(clen: usize) -> usize {
+    8 + 32 + 8 + 4 + 8 + 4 + clen * 8 + 32 + 32
+}
+
+/// Longest protocol line a node with matrix size `n` accepts (a `B <hex>` block line).
+pub fn max_line(n: usize) -> usize {
+    2 + 2 * block_bytes(n * n) + 2
+}
+
+/// Read one line of at most `max` bytes (newline included). Returns `Ok(None)` at EOF and an error
+/// for an over-long line, so a peer cannot grow the buffer without bound.
+pub fn read_line_bounded<R: BufRead>(r: &mut R, max: usize) -> io::Result<Option<String>> {
+    let mut buf = Vec::new();
+    let got = r.by_ref().take(max as u64 + 1).read_until(b'\n', &mut buf)?;
+    if got == 0 {
+        return Ok(None);
+    }
+    if buf.len() > max {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "line too long"));
+    }
+    let s = String::from_utf8(buf).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "not utf-8"))?;
+    Ok(Some(s.trim_end_matches(['\r', '\n']).to_string()))
+}
+
 pub fn encode_block(blk: &Block) -> String {
-    let mut v = Vec::new();
+    let mut v = Vec::with_capacity(block_bytes(blk.c.len()));
     put_u64(&mut v, blk.height);
     v.extend_from_slice(&blk.prev);
     put_u64(&mut v, blk.timestamp);
-    put_u64(&mut v, blk.nonce);
     v.extend_from_slice(&blk.bits.to_le_bytes());
+    put_u64(&mut v, blk.nonce);
     v.extend_from_slice(&(blk.c.len() as u32).to_le_bytes());
     for &x in &blk.c {
         put_u64(&mut v, x);
@@ -61,121 +100,99 @@ pub fn encode_block(blk: &Block) -> String {
     hex(&v)
 }
 
+/// Decode a block; the byte length must match the declared `C` length exactly.
 pub fn decode_block(s: &str) -> Option<Block> {
     let v = unhex(s)?;
-    let mut o = 0usize;
-    let rd_u64 = |v: &[u8], o: &mut usize| -> Option<u64> {
-        if *o + 8 > v.len() {
-            return None;
-        }
-        let mut e = [0u8; 8];
-        e.copy_from_slice(&v[*o..*o + 8]);
-        *o += 8;
-        Some(u64::from_le_bytes(e))
-    };
-    let height = rd_u64(&v, &mut o)?;
-    if o + 32 > v.len() {
+    if v.len() < block_bytes(0) {
         return None;
     }
+    let u64_at = |o: usize| u64::from_le_bytes(v[o..o + 8].try_into().unwrap());
+    let u32_at = |o: usize| u32::from_le_bytes(v[o..o + 4].try_into().unwrap());
+    let height = u64_at(0);
     let mut prev = [0u8; 32];
-    prev.copy_from_slice(&v[o..o + 32]);
-    o += 32;
-    let timestamp = rd_u64(&v, &mut o)?;
-    let nonce = rd_u64(&v, &mut o)?;
-    if o + 8 > v.len() {
+    prev.copy_from_slice(&v[8..40]);
+    let timestamp = u64_at(40);
+    let bits = u32_at(48);
+    let nonce = u64_at(52);
+    let clen = u32_at(60) as usize;
+    if v.len() != block_bytes(clen) {
         return None;
     }
-    let mut e4 = [0u8; 4];
-    e4.copy_from_slice(&v[o..o + 4]);
-    let bits = u32::from_le_bytes(e4);
-    o += 4;
-    e4.copy_from_slice(&v[o..o + 4]);
-    let clen = u32::from_le_bytes(e4) as usize;
-    o += 4;
-    if o + clen * 8 + 64 > v.len() {
-        return None;
-    }
-    let mut c = Vec::with_capacity(clen);
-    for _ in 0..clen {
-        c.push(rd_u64(&v, &mut o)?);
-    }
+    let c: Vec<u64> = (0..clen).map(|i| u64_at(64 + 8 * i)).collect();
+    let o = 64 + 8 * clen;
     let mut score = [0u8; 32];
     score.copy_from_slice(&v[o..o + 32]);
-    o += 32;
     let mut id = [0u8; 32];
-    id.copy_from_slice(&v[o..o + 32]);
-    Some(Block { height, prev, timestamp, nonce, c, score, id, bits })
+    id.copy_from_slice(&v[o + 32..o + 64]);
+    Some(Block { height, prev, timestamp, bits, nonce, c, score, id })
 }
 
-/// Serve a snapshot of `blocks` to one connection (oldest first) and close.
+/// Serve a snapshot of `blocks` to one connection (oldest first).
 pub fn serve_conn(stream: &mut TcpStream, blocks: &[Block]) {
+    let mut w = io::BufWriter::new(stream);
     for b in blocks {
-        let _ = writeln!(stream, "B {}", encode_block(b));
+        if writeln!(w, "B {}", encode_block(b)).is_err() {
+            return;
+        }
     }
-    let _ = writeln!(stream, "E");
-    let _ = stream.flush();
+    let _ = writeln!(w, "E");
+    let _ = w.flush();
 }
 
-/// Accept connections forever, serving a snapshot each time. `get_blocks` returns the current chain.
-pub fn serve_loop<F: Fn() -> Vec<Block> + Send + 'static>(listener: TcpListener, get_blocks: F) {
-    for stream in listener.incoming() {
-        if let Ok(s) = stream {
-            let blocks = get_blocks();
-            std::thread::spawn(move || {
-                let mut s = s;
-                serve_conn(&mut s, &blocks);
-            });
+/// Pull a peer's chain and validate it against `template` (same id, version, profile, dataset).
+/// Returns the validated chain, or `None` if the peer sent anything invalid. No lock is needed.
+pub fn fetch_chain(template: &Chain, addr: &str) -> io::Result<Option<Chain>> {
+    let stream = TcpStream::connect(addr)?;
+    stream.set_read_timeout(Some(READ_TIMEOUT))?;
+    {
+        let mut w = stream.try_clone()?;
+        writeln!(w, "SYNC")?;
+        w.flush()?;
+    }
+    let mut reader = BufReader::new(stream);
+    let max = max_line(template.profile.n);
+    let mut fresh = template.empty_like();
+    loop {
+        let t = match read_line_bounded(&mut reader, max) {
+            Ok(Some(t)) => t,
+            Ok(None) => break,
+            Err(e) if e.kind() == io::ErrorKind::InvalidData => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        if t == "E" {
+            break;
         }
+        let Some(rest) = t.strip_prefix("B ") else { return Ok(None) };
+        if fresh.blocks.len() >= MAX_SYNC_BLOCKS {
+            return Ok(None);
+        }
+        let valid = decode_block(rest).map(|blk| fresh.append_checked(blk)).unwrap_or(false);
+        if !valid {
+            return Ok(None); // invalid peer chain; ignore it entirely
+        }
+    }
+    Ok(Some(fresh))
+}
+
+/// Replace `chain` by `candidate` if it has strictly greater cumulative work; returns the new height.
+pub fn adopt_if_better(chain: &mut Chain, candidate: Chain) -> usize {
+    if candidate.cumulative_work() > chain.cumulative_work() {
+        chain.blocks = candidate.blocks;
+        chain.height() as usize
+    } else {
+        0
     }
 }
 
 /// Pull a peer's chain and adopt it if it is valid and has strictly greater cumulative work.
-pub fn sync_from(chain: &mut Chain, addr: &str) -> std::io::Result<usize> {
-    let stream = TcpStream::connect(addr)?;
-    {
-        let mut w = stream.try_clone()?;
-        let _ = writeln!(w, "SYNC");
-        let _ = w.flush();
-    }
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    let mut fresh = Chain::new(
-        Profile { n: chain.profile.n, k: chain.profile.k, bits: chain.profile.bits },
-        chain.chain_id,
-        chain.version,
-    );
-    fresh.dataset = chain.dataset.clone();
-
-    loop {
-        line.clear();
-        if reader.read_line(&mut line)? == 0 {
-            break;
-        }
-        let t = line.trim_end();
-        if t == "E" {
-            break;
-        }
-        if let Some(rest) = t.strip_prefix("B ") {
-            match decode_block(rest) {
-                Some(blk) => {
-                    if !fresh.append_checked(blk) {
-                        return Ok(0); // invalid peer chain; ignore
-                    }
-                }
-                None => return Ok(0),
-            }
-        }
-    }
-
-    if fresh.cumulative_work() > chain.cumulative_work() {
-        chain.blocks = fresh.blocks;
-        Ok(chain.height() as usize)
-    } else {
-        Ok(0)
+pub fn sync_from(chain: &mut Chain, addr: &str) -> io::Result<usize> {
+    match fetch_chain(chain, addr)? {
+        Some(fresh) => Ok(adopt_if_better(chain, fresh)),
+        None => Ok(0),
     }
 }
 
-// ---------------- solo job/submit protocol ----------------
+// ---------------- solo / pool job-submit protocol ----------------
 
 pub struct Job {
     pub chain_id: [u8; 32],
@@ -216,6 +233,11 @@ pub fn decode_job(s: &str) -> Option<Job> {
     Some(Job { chain_id, version, prev, height, timestamp, bits, extranonce })
 }
 
+/// First nonce of a miner's range: `nonce = (extranonce << 32) | counter`.
+pub fn nonce_base(extranonce: u64) -> u64 {
+    extranonce << 32
+}
+
 pub fn encode_sub(nonce: u64, timestamp: u64, c: &[u64]) -> String {
     let mut v = Vec::new();
     v.extend_from_slice(&nonce.to_le_bytes());
@@ -245,74 +267,99 @@ pub fn decode_sub(s: &str) -> Option<(u64, u64, Vec<u64>)> {
     Some((nonce, timestamp, c))
 }
 
-fn now() -> u64 {
+pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// Per-miner accounting: accepted and rejected submissions keyed by extranonce. Only full blocks
+/// exist (there is no share target below the block target), so "accepted" = blocks appended.
+#[derive(Default)]
+pub struct PoolStats {
+    inner: Mutex<BTreeMap<u64, (u64, u64)>>,
+}
+
+impl PoolStats {
+    pub fn record(&self, extranonce: u64, ok: bool) {
+        let mut m = self.inner.lock().unwrap();
+        let e = m.entry(extranonce).or_insert((0, 0));
+        if ok {
+            e.0 += 1;
+        } else {
+            e.1 += 1;
+        }
+    }
+
+    /// `(extranonce, accepted, rejected)` for every miner that submitted at least once.
+    pub fn snapshot(&self) -> Vec<(u64, u64, u64)> {
+        self.inner.lock().unwrap().iter().map(|(&k, &(a, r))| (k, a, r)).collect()
+    }
+}
+
 /// Handle one connection: `SYNC` (serve chain, then close), or repeated `JOB`/`SUB <hex>` on the
-/// same connection (send a job, accept a block). `extranonce` is this miner's nonce-space offset.
-pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, shares: &AtomicU64) {
+/// same connection. `extranonce` is this miner's nonce-range id; a `SUB` outside the range, with a
+/// timestamp too far in the future or not above the median time past is rejected.
+pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, stats: &PoolStats) {
+    let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
     let mut reader = match stream.try_clone() {
         Ok(s) => BufReader::new(s),
         Err(_) => return,
     };
+    let max = max_line(chain.lock().unwrap().profile.n);
     let mut w = stream;
     loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 {
-            break;
-        }
-        let t = line.trim_end().to_string();
+        let t = match read_line_bounded(&mut reader, max) {
+            Ok(Some(t)) => t,
+            _ => break,
+        };
         if t == "SYNC" {
-            let c = chain.lock().unwrap();
-            serve_conn(&mut w, &c.blocks);
+            let blocks = chain.lock().unwrap().blocks.clone(); // release the lock before writing
+            serve_conn(&mut w, &blocks);
             break;
         } else if t == "JOB" {
             let job = {
                 let c = chain.lock().unwrap();
+                let tpl = c.template();
                 Job {
                     chain_id: c.chain_id,
                     version: c.version,
-                    prev: c.tip(),
-                    height: c.height(),
-                    timestamp: now(),
-                    bits: c.next_bits(),
+                    prev: tpl.prev,
+                    height: tpl.height,
+                    timestamp: now().max(tpl.min_timestamp),
+                    bits: tpl.bits,
                     extranonce,
                 }
             };
-            let _ = writeln!(w, "JOB {}", encode_job(&job));
+            if writeln!(w, "JOB {}", encode_job(&job)).is_err() {
+                break;
+            }
         } else if let Some(rest) = t.strip_prefix("SUB ") {
-            match decode_sub(rest) {
+            let ok = match decode_sub(rest) {
                 Some((nonce, timestamp, c_vec)) => {
-                    let mut c = chain.lock().unwrap();
-                    if c_vec.len() != c.profile.n * c.profile.n {
-                        let _ = writeln!(w, "BAD");
-                        continue;
-                    }
-                    let height = c.height();
-                    let prev = c.tip();
-                    let bits = c.next_bits();
-                    let ph = preheader(&c.chain_id, c.version, height, &prev, timestamp, nonce);
-                    let block = Block {
-                        height,
-                        prev,
-                        timestamp,
-                        nonce,
-                        c: c_vec.clone(),
-                        score: score(&ph, &c_vec),
-                        id: block_id(&ph, &c_vec),
-                        bits,
-                    };
-                    if c.append_checked(block) {
-                        shares.fetch_add(1, Ordering::Relaxed);
-                        let _ = writeln!(w, "OK {}", c.height());
+                    if nonce >> 32 != extranonce || timestamp > now() + MAX_FUTURE_DRIFT {
+                        false
                     } else {
-                        let _ = writeln!(w, "BAD");
+                        let mut c = chain.lock().unwrap();
+                        let tpl = c.template();
+                        let ph = preheader(&c.chain_id, c.version, tpl.height, &tpl.prev, timestamp, tpl.bits, nonce);
+                        let block = Block {
+                            height: tpl.height,
+                            prev: tpl.prev,
+                            timestamp,
+                            bits: tpl.bits,
+                            nonce,
+                            score: score(&ph, &c_vec),
+                            id: block_id(&ph, &c_vec),
+                            c: c_vec,
+                        };
+                        c.append_checked(block)
                     }
                 }
-                None => {
-                    let _ = writeln!(w, "BAD");
-                }
+                None => false,
+            };
+            stats.record(extranonce, ok);
+            let reply = if ok { format!("OK {}", chain.lock().unwrap().height()) } else { "BAD".to_string() };
+            if writeln!(w, "{reply}").is_err() {
+                break;
             }
         } else {
             break;
@@ -321,16 +368,24 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sha
     let _ = w.flush();
 }
 
-/// Accept connections forever; assign each a distinct extranonce and count accepted shares.
-pub fn serve_multi(listener: TcpListener, chain: std::sync::Arc<Mutex<Chain>>) {
-    let next = AtomicU64::new(1);
-    let shares = std::sync::Arc::new(AtomicU64::new(0));
+/// Accept connections forever; assign each a distinct extranonce (from 1; 0 is reserved for the
+/// node's own miner) and record per-miner results in `stats`. At most `MAX_CONNS` at once.
+pub fn serve_multi(listener: TcpListener, chain: Arc<Mutex<Chain>>, stats: Arc<PoolStats>) {
+    let mut next: u64 = 1;
+    let active = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
-        if let Ok(s) = stream {
-            let c = std::sync::Arc::clone(&chain);
-            let en = next.fetch_add(1, Ordering::Relaxed);
-            let sh = std::sync::Arc::clone(&shares);
-            std::thread::spawn(move || handle_conn(s, &c, en, &sh));
+        let Ok(s) = stream else { continue };
+        if active.load(Ordering::Acquire) >= MAX_CONNS {
+            drop(s); // over capacity: refuse
+            continue;
         }
+        active.fetch_add(1, Ordering::AcqRel);
+        let en = next;
+        next += 1;
+        let (c, st, act) = (Arc::clone(&chain), Arc::clone(&stats), Arc::clone(&active));
+        std::thread::spawn(move || {
+            handle_conn(s, &c, en, &st);
+            act.fetch_sub(1, Ordering::AcqRel);
+        });
     }
 }

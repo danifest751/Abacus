@@ -76,10 +76,17 @@ pub fn matvec(m: &[u64], v: &[u64], n: usize) -> Vec<u64> {
 
 /// Freivalds check: does `C == A * B`? `r` is one random vector of length `n`.
 ///
-/// Returns `true` when `A * (B * r) == C * r`. An incorrect `C` passes with probability at most
-/// `1/2` for uniformly random `r`; call with several independent vectors, or use
-/// [`freivalds_verify_multi`].
+/// Returns `true` when `A * (B * r) == C * r`. For `r` uniform over `F_P^n` an incorrect `C`
+/// passes with probability at most `1/P` (Schwartz–Zippel; the classical `1/2` bound is for
+/// `r in {0,1}^n`, see ADR 0009). Returns `false` on a shape mismatch instead of panicking.
 pub fn freivalds_verify(a: &[u64], b: &[u64], c: &[u64], n: usize, r: &[u64]) -> bool {
+    let nn = match n.checked_mul(n) {
+        Some(v) => v,
+        None => return false,
+    };
+    if a.len() != nn || b.len() != nn || c.len() != nn || r.len() != n {
+        return false;
+    }
     let br = matvec(b, r, n);
     let abr = matvec(a, &br, n);
     let cr = matvec(c, r, n);
@@ -156,5 +163,17 @@ mod tests {
     fn mul_add_agree_with_reduce() {
         assert_eq!(mul_mod(P - 1, P - 1), 1); // (-1)*(-1) = 1
         assert_eq!(add_mod(P - 1, 1), 0);
+    }
+
+    #[test]
+    fn shape_mismatch_rejects_without_panicking() {
+        let mut rng = Rng::new(9);
+        let n = 4;
+        let a = rng.matrix(n);
+        let b = rng.matrix(n);
+        let c = matmul(&a, &b, n);
+        let r = rng.vector(n);
+        assert!(!freivalds_verify(&a, &b, &c[..15], n, &r));
+        assert!(!freivalds_verify(&a, &b, &c, n, &r[..3]));
     }
 }

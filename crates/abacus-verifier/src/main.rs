@@ -26,8 +26,8 @@ fn main() {
         let table: Vec<u64> = (0..64u64)
             .map(|i| (i * i + 3) % abacus_verifier::goldilocks::P)
             .collect();
-        let (claimed, rounds, rs) = abacus_verifier::sumcheck::prove(&table, 6, &mut rng);
-        abacus_verifier::sumcheck::verify(&table, 6, claimed, &rounds, &rs)
+        let (claimed, rounds) = abacus_verifier::sumcheck::prove(&table, 6);
+        abacus_verifier::sumcheck::verify(&table, 6, claimed, &rounds)
     };
 
     if ok_true && ok_false && ntt_ok && sc_ok {

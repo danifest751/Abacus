@@ -10,7 +10,6 @@ Writes JSON to an ignored `artifacts/`. Bounded toy measurement, not a work mode
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import random
@@ -18,6 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from reference.chain import fs_challenges  # noqa: E402  (bound to (preheader, C); ADR 0006/0010)
 from reference.freivalds import (  # noqa: E402
     P,
     freivalds_verify,
@@ -27,24 +27,7 @@ from reference.freivalds import (  # noqa: E402
     random_vector,
 )
 
-
-def fs_challenges(C, n, k, preheader=b"", domain=b"abacus/check"):
-    """k challenge vectors, Fiat-Shamir bound to the committed C.
-
-    Hash C **once** to a root, then expand the k*n field elements from the root. Hashing the whole
-    C per element would make verification O(k*n^3) bytes and defeat the purpose (ADR 0006).
-    """
-    cbytes = b"".join(int(x).to_bytes(8, "little") for x in C)
-    root = hashlib.sha256(domain + preheader + cbytes).digest()
-    vals = []
-    counter = 0
-    need = k * n
-    while len(vals) < need:
-        h = hashlib.sha256(root + counter.to_bytes(4, "little")).digest()
-        for off in (0, 8, 16, 24):
-            vals.append(int.from_bytes(h[off:off + 8], "little") % P)
-        counter += 1
-    return [vals[i * n:(i + 1) * n] for i in range(k)]
+PREHEADER = b"abacus/probe"
 
 
 def forge(A, B, n, r, rng):
@@ -83,9 +66,9 @@ def main() -> int:
     single_passes_forgery = freivalds_verify(A, B, Cprime, n, r) and Cprime != C and nonzero
 
     # Fiat–Shamir multi-challenge bound to C
-    rs_forged = fs_challenges(Cprime, n, k)
+    rs_forged = fs_challenges(PREHEADER, Cprime, n, k)
     fs_rejects_forgery = not freivalds_verify_multi(A, B, Cprime, n, rs_forged)
-    fs_accepts_honest = freivalds_verify_multi(A, B, C, n, fs_challenges(C, n, k))
+    fs_accepts_honest = freivalds_verify_multi(A, B, C, n, fs_challenges(PREHEADER, C, n, k))
 
     out = {
         "date": "2026-10-09",

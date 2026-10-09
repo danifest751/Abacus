@@ -17,11 +17,12 @@ dependency). Characterising and minimising this anchor is the central research p
 
 ## 2. Verification soundness
 
-- Freivalds accepts an incorrect product with probability at most `1/2` per random vector; the
-  number of challenge vectors and their independence must be specified, and challenges must not
-  be miner-chosen.
+- Freivalds accepts an incorrect product with probability at most `1/P` per vector uniform over
+  `F_P` (`<= 2^-63` with our derivation; `1/2` only for `r in {0,1}^n`, ADR 0009); challenges must be
+  Fiat–Shamir bound to `(preheader, C)` and never miner-chosen.
 - Sumcheck/GKR soundness depends on Fiat–Shamir transcript binding; random-oracle assumptions and
-  transcript encoding must be fixed and domain-separated.
+  transcript encoding must be fixed and domain-separated. A verifier that accepts prover-supplied
+  challenges is forgeable (found and fixed, ADR 0010).
 - A verifier checks the *result*, not that a miner performed the work. A cheater who found a
   cheaper route is indistinguishable — this is a work-accounting problem, not a verification bug.
 
@@ -49,7 +50,17 @@ fields that change the challenge and forbid free attempt fields.
 
 - Invalid or near-valid proofs must not be able to overload full nodes: proof size, parsing and
   worst-case acceptance/rejection cost must be bounded before variable-length parsing.
-- Snapshot/submission message caps and rate limits are required before any networking.
+- Snapshot/submission message caps and rate limits are required before any networking. The
+  prototype caps line length, connections and snapshot size and uses read timeouts (ADR 0010); it
+  has no rate limiting or peer scoring.
+
+## 6a. Difficulty and time (prototype consensus)
+
+- The difficulty of every block must be the ancestor-derived value and must be committed in the
+  header; work is counted from the required target, never from the achieved score (ADR 0010).
+- Timestamps feed the retarget, so they must be bounded: greater than the median of the last 11
+  blocks, and not far in the future of the validating node. A miner-chosen timestamp is otherwise
+  a difficulty knob.
 
 ## 7. Cryptographic dependence (if the proving instantiation is pursued)
 

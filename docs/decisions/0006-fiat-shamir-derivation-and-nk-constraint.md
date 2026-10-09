@@ -1,6 +1,9 @@
 # ADR 0006 — Fiat–Shamir derivation: commit-then-expand, and the n > 2k constraint
 
 Status: accepted. Corrects the challenge derivation and records a parameter constraint for candidate A.
+**Amended by ADR 0009:** the `n > 2k` constraint was derived with `k = 128` from an over-pessimistic
+soundness bound; with `k = 2..3` it holds for any practical `n`. The commit-then-expand derivation
+stands; the implementation now binds the preheader as written here (ADR 0010).
 
 ## Context
 

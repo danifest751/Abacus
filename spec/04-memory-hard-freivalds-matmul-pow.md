@@ -12,17 +12,21 @@ obsoleted by per-epoch dataset regeneration.
 
 ## 2. Epoch dataset `D`
 
-- Size `S` (e.g. 1-4 GiB), divided into `N` fixed blocks (e.g. 64 bytes each).
+- Size `S` (e.g. 1-4 GiB), divided into `N` fixed blocks (32 bytes each in the prototype).
 - **Sequentially and data-dependently constructed** from `epoch_seed`:
   ```
   blk[0]   = H(domain_ds || epoch_seed || 0)
   blk[u]   = H(domain_ds || epoch_seed || u || blk[u-1] || blk[ref(u)])
-  ref(u)   = LE64(H(domain_ref || epoch_seed || u)) mod u     # an earlier block
+  ref(u)   = LE64(blk[u-1][0..8]) mod u                       # data-dependent (ADR 0010)
   epoch_seed = H(domain_epoch || epoch_index)                  # changes each epoch
   ```
   The chain makes a random block **not cheaply recomputable** without the prefix: to read block `u`
   you either built and stored the chain or pay `O(u)`. A miner therefore must **hold `D`** to access
-  it randomly, which is the memory-hard property.
+  it randomly, which is the memory-hard property. No time-memory trade-off (checkpointing,
+  pebbling) analysis has been done; the `O(u)` figure is the naive no-checkpoint cost.
+- **Effective storage.** The prototype gather consumes only the first 8 bytes of a block
+  (`field_from_block`), so a miner needs `8 * N` bytes, not `S = 32 * N`. Either state `S` as
+  `8 * N` or make the gather consume whole blocks.
 - Regenerated every `E` blocks (epoch); regeneration must be cheap for honest miners but hostile to a
   fixed ASIC (algorithm agility).
 
@@ -54,8 +58,11 @@ chosen so the two are **comparable** (both matter); otherwise the memory layer i
 ## 5. Parameters and open questions (falsifiers)
 
 - `(n, S, E, D_bits, k)` with `n > 2k`; the gather (bytes) and matmul (multiplies) must be balanced.
-- **Gather is bandwidth/pattern bound** (measured: gathered 64 KiB reads ~6% of sequential bandwidth on
-  the CMP; `docs/research/gather-bandwidth-v1.md`) — quantify and tune `S`/block size.
+- **Gather bandwidth**: warm, block-cooperative 64 KiB gathered reads reach ~416 GB/s, ~87% of
+  sequential on the CMP (`docs/research/gather-bandwidth-v1.md`; the earlier "~6%" was a cold-clock
+  artifact and is withdrawn) — so a memory-hard layer needs a very large per-attempt gather.
+- **Nonlinear fold**: any per-entry fold of a gathered segment must be nonlinear and sequential. A
+  linear fold (e.g. a sum) is answered by two prefix-sum reads and is not memory-hard (ADR 0010).
 - **No cross-attempt caching**: `idx` is header/seed derived and must change every attempt.
 - **Dataset not recomputable**: the data-dependent chain must actually force storage (measure the cost
   of recomputing a random block vs reading it).

@@ -29,21 +29,27 @@ Date: 2026-10-09. Host: local server, **CMP 50HX** (Turing, sm_75), CUDA 13.3. K
 
 ## Caveats
 
-- The GPU kernel is deliberately simple; a tensor-core int8 GEMM would be far faster, so 44 GMAC/s is
-  a **floor**, not a tuned number. The CPU baseline is a naive loop, not BLAS — the 415x is
+- The GPU kernel is deliberately simple, so 44 GMAC/s is a **floor**, not a tuned number. Tensor
+  cores do not apply to 64-bit Goldilocks arithmetic (ADR 0008); a faster kernel needs better
+  tiling/reduction, not int8. The CPU baseline is a naive loop, not BLAS — the 415x is
   illustrative, not a rigorous hardware ranking.
 - This is a **throughput baseline**, not a work model, miner or consensus. It makes no claim about
   difficulty, reuse or the existence of a work function.
 
-## D5 — matched CPU/GPU work rate (candidate A)
+## D5 — matched CPU/GPU work rate (candidate A) — NOT a D5 result
+
+> **Correction (2026-10-09 review).** This section does not meet the D5 definition of
+> `docs/CRITICAL-PATH.md` §4 (matched domain/caps/output/timer, energy x time). It has a single CPU
+> point (n=512, naive, single-threaded), one timed GPU launch, and no energy measurement; a constant
+> factor cannot be read from one point. Treat it as a throughput observation only.
 
 Same field (Goldilocks), same machine (CMP 50HX), same kernel family (dense `n x n` product):
 
 - n = 512: GPU 63.8 GMAC/s vs **naive CPU 0.154 GMAC/s → ~415x**.
 - The GPU rate is roughly flat (44-64 GMAC/s) across n; the CPU rate is ~0.15 GMAC/s.
 
-Interpretation: the GPU advantage is a **constant factor**, not a superlinear break, so the work
-function stays **portable** across CPU and GPU (the D5 threat — a memory-rich device winning
+Original interpretation (not supported by one point, see the correction above): the GPU advantage is
+a **constant factor**, not a superlinear break, so the work function stays **portable** across CPU and GPU (the D5 threat — a memory-rich device winning
 superlinearly — does not fire for dense matmul). Caveat: the CPU baseline is naive; BLAS/Strassen
 would narrow the constant, and Strassen also lowers the work exponent (see `omega_probe.py`), but
 neither is superlinear in the way that would break monotonicity.

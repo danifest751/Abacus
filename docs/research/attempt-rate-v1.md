@@ -1,5 +1,15 @@
 # Attempt rate v1 — candidate A' (memory-hard) on the CMP
 
+> **WITHDRAWN (ADR 0010).** The bench folded each gathered segment with a plain `u64` sum, which a
+> miner answers with two prefix-sum reads (`seg/8` reads -> 2), so the "memory-hardness is
+> achieved" conclusion below does not hold. The gather was also one uncoalesced thread per entry
+> (the 11.6–85 GB/s describe that kernel, not the hardware; cooperative warm reads reach ~416
+> GB/s), the dataset was a constant `0x5A` fill, and `n=512` came out faster than `n=256` with 4x
+> the gather and 8x the matmul — consistent with the cold-clock artifact of
+> `gather-bandwidth-v1.md` (64 attempts run for about one second). The raw table is kept for the
+> record. `cuda/attempt_bench.cu` v2 uses a nonlinear fold and has not been measured yet.
+
+
 Date: 2026-10-09. Bench: `cuda/attempt_bench.cu`, CMP 50HX (sm_75). Per attempt: gather `n^2` field
 elements (each folded from a `seg`-byte random dataset segment) + Goldilocks `n x n` matmul.
 

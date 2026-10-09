@@ -1,7 +1,8 @@
 # Verifier throughput v1 — candidate A (CPU, release)
 
 Date: 2026-10-09. Bench: `crates/abacus-verifier/src/bin/abacus-verify-bench.rs`
-(`cargo run --release --bin abacus-verify-bench`). Field: `P = 2**61 - 1` (the Freivalds field).
+(`cargo run --release --bin abacus-verify-bench`). Field: Goldilocks `P = 2**64 - 2**32 + 1` (an earlier draft said `2**61 - 1`; the code has always
+used Goldilocks).
 Challenge derivation: commit-then-expand (ADR 0006). CPU: desktop x86-64, release build.
 
 Work = `n^3` scalar multiplications for the product; verification = one `O(n^2)` commitment hash plus
@@ -23,8 +24,9 @@ Work = `n^3` scalar multiplications for the product; verification = one `O(n^2)`
   `n=1024, k=128` it is **0.34x** (verifier ~3x cheaper than the work).
 - The earlier 714x blow-up was the naive Fiat–Shamir derivation (hashing the whole `C` per challenge
   element), fixed by commit-then-expand (ADR 0006).
-- A recommended parameter profile is therefore `k = 128` with `n >= 512`, ideally `n = 1024..2048`
-  (4-8x verifier margin). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
+- ~~A recommended parameter profile is therefore `k = 128` with `n >= 512`~~ **Superseded by ADR
+  0009:** the per-challenge error is `<= 2^-63`, so `k = 2..3` suffices and the verifier costs
+  `~4..6 n^2`; the bench now also runs `k = 2, 3` (not yet re-measured). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
   profile.
 
 ## Caveats

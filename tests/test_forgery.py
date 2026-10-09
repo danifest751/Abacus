@@ -35,5 +35,5 @@ def test_fiat_shamir_multichallenge_rejects_forgery():
     if r[0] == 0:
         r[0] = 1
     Cprime, _ = fp.forge(A, B, n, r, rng)
-    assert not freivalds_verify_multi(A, B, Cprime, n, fp.fs_challenges(Cprime, n, k))
-    assert freivalds_verify_multi(A, B, C, n, fp.fs_challenges(C, n, k))
+    assert not freivalds_verify_multi(A, B, Cprime, n, fp.fs_challenges(b"ph", Cprime, n, k))
+    assert freivalds_verify_multi(A, B, C, n, fp.fs_challenges(b"ph", C, n, k))

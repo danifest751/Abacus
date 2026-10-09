@@ -1,8 +1,14 @@
 // Attempt-rate bench for candidate A' (memory-hard): gather operands from a dataset, matmul, score.
 //
 // Per attempt: n^2 gathered field elements (each folded from a `seg`-byte dataset segment), then a
-// Goldilocks n x n matmul, then a score reduction. Measures attempts/s and effective gather bandwidth
-// at the designed gather volume (default n=256, seg=2560 B -> ~168 MB/attempt, dataset 2 GiB).
+// Goldilocks n x n matmul. Measures attempts/s and effective gather bandwidth at the designed gather
+// volume (default n=256, seg=2560 B -> ~168 MB/attempt, dataset 2 GiB).
+//
+// v2 (ADR 0010): the segment fold is a **nonlinear, sequential** mix. v1 summed the segment, which a
+// miner answers with two prefix-sum reads (precomputed once per epoch), so v1 did not measure a
+// memory-hard gather. The gather is still one thread per entry (uncoalesced); a warp-cooperative
+// gather is the honest-miner baseline and is not implemented here. v1 numbers are withdrawn
+// (docs/research/attempt-rate-v1.md); v2 has not been compiled or measured yet.
 //
 // Build: nvcc -O3 -arch=sm_75 attempt_bench.cu -o attempt_bench
 // Run:   ./attempt_bench [n] [seg_bytes] [dataset_MiB] [attempts]
@@ -30,7 +36,15 @@ __device__ __forceinline__ unsigned long long gl_mul(unsigned long long a, unsig
     return r;
 }
 
-// Gather one field element per A entry by folding a random `seg`-byte dataset segment.
+// SplitMix64 finalizer: a bijective nonlinear mix, so the fold below is not decomposable.
+__device__ __forceinline__ unsigned long long mix64(unsigned long long x) {
+    x ^= x >> 30; x *= 0xBF58476D1CE4E5B9ULL;
+    x ^= x >> 27; x *= 0x94D049BB133111EBULL;
+    return x ^ (x >> 31);
+}
+
+// Gather one field element per A entry by folding a random `seg`-byte dataset segment with a
+// sequential nonlinear mix (no prefix-sum shortcut; every word of the segment must be read).
 __global__ void gather_A(const unsigned char* __restrict__ D, unsigned long long dwords,
                          unsigned long long* __restrict__ A, int n, int seg, unsigned long long seed) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -42,7 +56,7 @@ __global__ void gather_A(const unsigned char* __restrict__ D, unsigned long long
     unsigned long long off = (h % (dwords - segw)) & ~1ULL;
     const unsigned long long* p = reinterpret_cast<const unsigned long long*>(D) + off;
     unsigned long long acc = 0;
-    for (unsigned long long k = 0; k < segw; ++k) acc += p[k];
+    for (unsigned long long k = 0; k < segw; ++k) acc = mix64(acc ^ p[k]);
     A[i] = acc % P;
 }
 

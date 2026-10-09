@@ -42,6 +42,9 @@ chain. If not, the correct outcome is an **explicit, published negative result**
   - **Status (ADR 0008): not memory-hard as sketched.** With one 32-byte block per entry the matmul
     dominates on the CMP; the A' gate requires a large-slice gather and/or an int8-representable
     modulus, plus a measured int8 matmul rate and a warm gathered bandwidth.
+  - **Status (ADR 0010):** the large-slice attempt-rate result is withdrawn (its linear segment fold
+    collapses under prefix sums); the dataset references are now data-dependent; storage need is
+    `8 * N` bytes. A' is not shown to be memory-hard.
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
   transcript; verifier checks in `O(log n)`.
   - Falsifiers: NTT linearity (block/butterfly reuse, precomputed twiddle plans); transcript
@@ -94,13 +97,18 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **D2/D3/D4 done on candidate A**; probes: `instance_probe.py`, `omega_probe.py`,
   `freivalds_forgery_probe.py`. A toy CPU mine+verify loop works (`mine_sim.py`).
 - **GPU baseline (E5 start)**: Goldilocks matmul GPU vs CPU on the CMP 50HX (`gpu-baseline-v1.md`);
-  the GPU advantage is a ~constant factor, i.e. **work is portable**, not superlinear (D5 work rate
-  done).
-- **Verifier throughput** measured and the `n > 2k` constraint recorded (ADR 0006;
-  `docs/research/verifier-throughput-v1.md`); Rust parity for the Fiat–Shamir binding done.
-- **Next**: (1) cross-language FS differential (adapter); (2) a GPU *attempt* kernel for a matched
-  CPU/GPU mine-scope (D5) at a chosen profile; (3) finalise the `(n, D, k)` profile; then decide on a
-  minimal testnet prototype. Candidate A is currently a **positive** result.
+  a throughput point only (one naive single-threaded CPU point at n=512). **D5 is not done**: the
+  matched energy x time comparison of §4 has not been run, so portability is not established.
+- **Verifier throughput** measured (ADR 0006; `docs/research/verifier-throughput-v1.md`). The
+  `k = 128` / `n > 2k` profile rested on an over-pessimistic bound; per-challenge error is
+  `<= 2^-63`, so `k = 2..3` suffices (ADR 0009). Python/Rust parity now covers every consensus
+  derivation (ADR 0010).
+- **Next**: (1) re-derive the `(n, D, k)` profile under ADR 0009; (2) the matched CPU/GPU D5 scope at
+  that profile; (3) the D6 anchor note. Candidate A is currently a **positive** result at the
+  construction level; its work model is not yet calibrated.
 - **E6 done**: a multi-node P2P prototype (pull sync, greatest-cumulative-work adoption, reorg rollback)
-  plus a memory-hard A' sync test; a 3-process demo converges
+  plus an A' sync test; a 3-process demo converges
   (`docs/research/multi-node-testnet-v1.md`, `crates/abacus-chain`).
+- **Recorded deviation from §6.** Chain, pool and CPPminer work went beyond the parked scope while
+  D5/D6 were open, and the review found consensus bugs there (ADR 0010). Those bugs are fixed; the
+  chain is frozen at the E6 gate except for the CPPminer v2 compatibility update.

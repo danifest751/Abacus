@@ -9,7 +9,7 @@ fn main() {
     let wanted: u64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(20);
 
     let profile = Profile { n: 8, k: 8, bits: 4 };
-    let mut chain = Chain::new(profile, [0xABu8; 32], 1);
+    let mut chain = Chain::new(profile, [0xABu8; 32], 2);
 
     println!("{{\"profile\": {{\"n\": {}, \"k\": {}, \"bits\": {}}}, \"blocks\": [", profile.n, profile.k, profile.bits);
     let mut ts = 0u64;
@@ -18,7 +18,7 @@ fn main() {
         let t0 = Instant::now();
         let b = chain.mine_next(ts, 10_000_000).expect("mined");
         let dt = t0.elapsed().as_secs_f64();
-        let ph = preheader(&chain.chain_id, chain.version, b.height, &b.prev, b.timestamp, b.nonce);
+        let ph = preheader(&chain.chain_id, chain.version, b.height, &b.prev, b.timestamp, b.bits, b.nonce);
         let ok = verify(&Profile { n: profile.n, k: profile.k, bits: b.bits }, &ph, &b.c, &b.score, None);
         println!(
             "  {{\"height\": {}, \"nonce\": {}, \"bits\": {}, \"seconds\": {dt:.4}, \"verified\": {ok}}}{}",

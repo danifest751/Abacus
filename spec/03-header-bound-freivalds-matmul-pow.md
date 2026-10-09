@@ -17,17 +17,26 @@ preheader = encode(chain_id, version, profile, prev_block, height, tx_root,
 seed      = SHAKE256(domain_instance || preheader)
 A, B      = expand(seed, profile)          # two dense n x n matrices over the field
 C         = A * B                          # the work: n^omega field operations
-r_i       = HASH(domain_check || preheader || encode(C) || i), i = 1..k   # k ~ 128, bound to C
+root      = HASH(domain_check || preheader || encode(C))                  # commit (ADR 0006)
+r_i       = expand(root)[i*n .. (i+1)*n], i = 0..k-1                       # k = 2..3 (ADR 0009)
 accept    = ( all_i Freivalds_verify(A, B, C, r_i) )
             and ( HASH(domain_score || preheader || encode(C)) <= target )
 ```
 
-The challenge must be **multiple** and **Fiat–Shamir bound to the committed `C`** (see ADR 0004); a
-single, header-derived `r` is forgeable.
+The challenge must be **Fiat–Shamir bound to the committed `C`** (see ADR 0004); a single,
+header-derived `r` is forgeable. Each challenge errs with probability `<= 2^-63` (ADR 0009).
+
+**Prototype encoding (v2, `crates/abacus-chain`, `reference/chain.py`).** The implemented preheader is
+`"abacus/ph" || chain_id(32) || version(u32) || prev(32) || height(u64) || timestamp(u64) ||
+bits(u32) || nonce(u64)` (little-endian). `profile`, `tx_root` and `reward_commitment` are not
+implemented. `bits` is the difficulty descriptor: it is ancestor-derived, must equal the retarget
+value, and is committed so it cannot be altered without changing the instance and the block id
+(ADR 0010). Timestamps must exceed the median of the previous 11 blocks. `C` must be exactly
+`n^2` canonical residues.
 
 - The miner submits `C` (n^2 field elements). The block also binds the preheader.
 - Verification is `O(k n^2)`: for each of `k` challenges check `A*(B*r_i) == C*r_i`, then the score
-  hash against `target`.
+  hash against `target`. Shape and canonicality are checked before any hashing.
 - Difficulty: adjust `n` (profile) and/or `target`. Changing `A,B` requires a new header (new nonce).
 
 ## 3. Why header binding removes the noising

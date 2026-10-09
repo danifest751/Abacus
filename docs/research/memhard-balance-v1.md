@@ -48,7 +48,9 @@ The tension is `dataset >> gather > n^3*BW/rate`. On the CMP this is feasible on
 | 256 | 64 | 159 MB | 0.38 ms | 0.38 ms | >> 159 MB (e.g. ~2 GB) |
 
 At `n=256, k=64`: gather ≈ matmul (balanced), the gather is ~8% of a 2 GB dataset (stays random
-access), and the verifier is `2k*n^2 / n^3 = 0.5x` the work (`n > 2k` holds). This fits the CMP's
+access), and the verifier is `2k*n^2 / n^3 = 0.5x` the work (`n > 2k` holds). With `k = 2..3`
+(ADR 0009) the verifier term is negligible. Any fold of a gathered slice must be nonlinear, or
+prefix sums remove the gather (ADR 0010). This fits the CMP's
 10 GB. Larger `n` (512+) needs a 1.3-10 GB gather and a `>>`-larger dataset, which does **not** fit
 the CMP — memory-hard A' at large `n` requires more VRAM (24-80 GB GPUs).
 

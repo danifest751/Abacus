@@ -2,6 +2,13 @@
 
 Date: 2026-10-09. Repo: `danifest751/CPPminer`, branch `feat/abacus-backend` (from `ca259ff`).
 
+> **Compatibility (ADR 0010).** Everything below was measured against encoding **v1**. The node now
+> uses **v2**: the preheader gains `bits` (u32 LE) between `timestamp` and `nonce`, the A' dataset
+> reference is data-dependent (`ref(u) = LE64(blk[u-1][0..8]) mod u`), and `SUB` must stay in the
+> miner's `extranonce` range. CPPminer must be updated before it can mine against this node again,
+> and its A' gather fold must be checked: a linear sum has the prefix-sum shortcut. The "GPU
+> dataset ... data-dependent chain" below was index-dependent only in v1.
+
 The Abacus PoW (candidate A) is integrated into CPPminer as a new algorithm:
 
 - `include/cp_abacus.h`, `include/cp_algo.h` (adds `CP_ALGO_ABACUS`), `src/common/cp_algo.cpp`
@@ -9,7 +16,7 @@ The Abacus PoW (candidate A) is integrated into CPPminer as a new algorithm:
   parser rejects abacus flags), `CMakeLists.txt`.
 - `src/abacus/cp_abacus.{cpp,cu}`: argument handling and a CUDA **mock** nonce search.
 
-## Encoding (matches the Abacus prototype byte-for-byte)
+## Encoding v1 (matched the Abacus prototype byte-for-byte before ADR 0010)
 
 ```
 preheader = "abacus/ph" || chain_id(32) || version(u32 LE) || prev(32) || height(u64 LE)
@@ -81,8 +88,8 @@ node:    {"height": 91, "work": 13568, ...}
 
 Two clients grew one chain to 91 blocks. Some found blocks are stale (both clients may mine the same
 height before either submits, and the second `SUB` is rejected on a prev-id mismatch) — expected
-prototype behaviour; a real pool needs per-client difficulty and stale handling. No share accounting
-or payout exists.
+prototype behaviour; a real pool needs per-client difficulty and stale handling. (Superseded by the
+extranonce change below; per-miner accounting now exists in the node, ADR 0010. No payout exists.)
 
 ## Candidate A' memory-hard path (mock)
 
@@ -139,14 +146,15 @@ count instead of one thread per element, leaving most of `A`, `B` unwritten).
 
 ## Not implemented
 
-- **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
-  negotiation or multi-client pool).
+- **Pool mining**: one node serves several miners with per-miner extranonce ranges and per-miner
+  accounting of accepted blocks; there is no share target below the block target, no difficulty
+  negotiation and no payout.
 - GPU-side instance expansion and score hashing (host-side today, which bounds the attempt rate at
   small `n`).
-- The A' memory-hard gather is not wired into the CPPminer path yet.
+- The A' gather is wired into CPPminer (above) but not yet updated to encoding v2.
 
 ## Next
 
-1. Pool: share accounting and many miners against one node.
+1. Update to encoding v2 (ADR 0010) and re-verify solo/pool/A' against the node.
 2. GPU-side expand/score; larger `n`.
 3. A' memory-hard gather in the CPPminer backend.
