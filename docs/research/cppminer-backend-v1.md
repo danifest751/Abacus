@@ -99,6 +99,20 @@ Gather bytes/attempt at seg=4 KiB are 2*n^2*4096 = 33.5 MB, ~0.46 ms at 72 GB/s,
 matmul — so the gather **dominates**: the memory-hard path works on the GPU. The node-side dataset
 (generation + verification) is the next step; the mock is self-contained.
 
+### A' into the chain (solo, verified)
+
+`--node HOST:PORT --dataset NBLOCKS` runs memory-hard solo: CPPminer builds the same host dataset as
+the node (`build_dataset`, matching the Rust chain), gathers `A, B` on the GPU, and submits. With
+`abacus-node --n 64 --dataset 8000`:
+
+```
+cppminer --algo abacus --backend cuda --node 127.0.0.1:9210 --n 64 --dataset 8000 --seconds 6
+# node accepted 61 memory-hard blocks; verify=true, ab0 == c0
+```
+
+A gather launch-bound bug was found and fixed (the gather used the expand kernel's quarter-block
+count instead of one thread per element, leaving most of `A`, `B` unwritten).
+
 ## Not implemented
 
 - **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
