@@ -1,0 +1,14 @@
+[package]
+name = "abacus-verifier"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Independent Rust verifier for the Abacus research laboratory (Freivalds matrix-product verification)."
+
+[lib]
+name = "abacus_verifier"
+path = "src/lib.rs"
+
+[[bin]]
+name = "abacus-verifier"
+path = "src/main.rs"
