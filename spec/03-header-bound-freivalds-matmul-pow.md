@@ -17,12 +17,17 @@ preheader = encode(chain_id, version, profile, prev_block, height, tx_root,
 seed      = SHAKE256(domain_instance || preheader)
 A, B      = expand(seed, profile)          # two dense n x n matrices over the field
 C         = A * B                          # the work: n^omega field operations
-r         = challenge(domain_check || preheader)  # a length-n vector, verifier-derived
-accept    = ( Freivalds_verify(A, B, C, r) ) and ( HASH(domain_score || preheader || encode(C)) <= target )
+r_i       = HASH(domain_check || preheader || encode(C) || i), i = 1..k   # k ~ 128, bound to C
+accept    = ( all_i Freivalds_verify(A, B, C, r_i) )
+            and ( HASH(domain_score || preheader || encode(C)) <= target )
 ```
 
+The challenge must be **multiple** and **Fiat–Shamir bound to the committed `C`** (see ADR 0004); a
+single, header-derived `r` is forgeable.
+
 - The miner submits `C` (n^2 field elements). The block also binds the preheader.
-- Verification is `O(n^2)`: check `A*(B*r) == C*r`, then the score hash against `target`.
+- Verification is `O(k n^2)`: for each of `k` challenges check `A*(B*r_i) == C*r_i`, then the score
+  hash against `target`.
 - Difficulty: adjust `n` (profile) and/or `target`. Changing `A,B` requires a new header (new nonce).
 
 ## 3. Why header binding removes the noising
