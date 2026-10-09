@@ -15,3 +15,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "abacus-mine"
 path = "src/bin/abacus-mine.rs"
+
+[[bin]]
+name = "abacus-node"
+path = "src/bin/abacus-node.rs"

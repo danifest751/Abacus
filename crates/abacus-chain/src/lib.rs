@@ -8,6 +8,8 @@
 
 use abacus_verifier::{freivalds_fs::verify_fs, matmul, sha256::sha256, P};
 
+pub mod p2p;
+
 pub const DOM_INSTANCE: &[u8] = b"abacus/instance";
 pub const DOM_SCORE: &[u8] = b"abacus/score";
 pub const DOM_BLOCK: &[u8] = b"abacus/block";
