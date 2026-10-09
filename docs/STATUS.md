@@ -19,7 +19,8 @@ of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
   `C` costs as much as the product below `n ~ 1500` and is 16–256 MiB where the product dominates.
   Test 1 (ADR 0013): a per-attempt succinct commitment costs more than the product (19–57x measured,
   >= 1.4x ideal at `n = 4096`), so the single-GEMM form is stopped; escapes E1 (winner-only proof of a
-  plain hash) and E2 (deep requantized chain) are untested.
+  plain hash) and E2 (deep requantized chain) remain; E1's winner proof measured at ~4–9 min on 8 CPU
+  threads for `n = 4096` (`e1-hash-proof-v1`). Pearl already deploys an int8-GEMM PoW (`prior-art-v1`).
 - **Candidates B and C**: verifiers only; B's verification advantage is a `log n` factor (ADR 0003).
 - Research record and current notes: `docs/research/README.md`.
 

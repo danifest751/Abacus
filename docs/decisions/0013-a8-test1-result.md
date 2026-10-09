@@ -24,6 +24,14 @@ single-GEMM form of A8; records two untested escapes. Evidence: `docs/research/a
      GKR for the layers; overhead divided by `L`. Decisive unknowns: GKR with lookups, verifier cost,
      proof size.
 
+## Update (E1 measured)
+
+Plonky3 on 8 CPU threads proves 65,536 SHA-256 compressions in 34.6 s (BLAKE3: 15.4 s), i.e. ~9 min
+(~4 min) for the hash of `C` at `n = 4096` before aggregation (`e1-hash-proof-v1`). E1 is conditionally
+viable only with a GPU prover and long block intervals; not pursued further. Prior art
+(`prior-art-v1`): Pearl already deploys an int8-GEMM PoW whose per-tile lottery avoids the whole-`C`
+commitment.
+
 ## Consequences
 
 The next A8 experiment, if pursued, is an estimate of the E1 winner proving cost from an existing
