@@ -113,6 +113,30 @@ cppminer --algo abacus --backend cuda --node 127.0.0.1:9210 --n 64 --dataset 800
 A gather launch-bound bug was found and fixed (the gather used the expand kernel's quarter-block
 count instead of one thread per element, leaving most of `A`, `B` unwritten).
 
+## GPU dataset generation and pool extranonce
+
+- **GPU dataset**: `dataset_chain_kernel` builds the epoch dataset on the device (sequential
+  data-dependent chain, matching the Rust `build_dataset`); used by the hard mock and A' solo. The
+  host no longer builds it.
+- **Pool extranonce**: each connection gets a distinct extranonce; the miner sets
+  `nonce = (extranonce<<32) | counter`, so two miners do not walk the same nonce space. Two clients
+  against one node: **52 + 39 = 91 accepted = node height** — no stale shares (previously many were
+  lost to same-height collisions).
+- **Device score (reverted)**: a single-thread device SHA-256 over `n^2*8` bytes was ~20x *slower*
+  than the host score (269 vs 5075 attempts/s at n=64, measured), because it serialises the whole
+  digest onto one GPU thread. It was reverted; the host score is not the bottleneck at these sizes.
+  A *parallel* device hash (or a host score pipeline overlapped with the GPU) is the way to help
+  larger `n`.
+
+## Current rates (CMP 50HX, n=64)
+
+| mode | attempts/s |
+|---|---:|
+| plain mock | 4820 |
+| hard mock (device dataset) | 3757 |
+| A' solo into node | 52+39 blocks / two clients |
+| pool (2 clients) | 91 accepted, 0 stale |
+
 ## Not implemented
 
 - **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
