@@ -16,16 +16,36 @@ negative result is a valid outcome.
 
 ## Implemented
 
-- Exact Python reference verifier: `Freivalds` matrix-product verification over a prime field.
-- Independent Rust verifier with explicit bounds and overflow analysis.
-- Goldilocks field, NTT and the sumcheck protocol (candidate B) in Python and Rust.
-- A **minimal local prototype** of candidate A (`crates/abacus-chain`): mine and verify a chain.
-- A Goldilocks matmul throughput baseline (`cuda/`), CPU vs GPU (see `docs/research/`).
-- Deterministic differential corpus (Python vs Rust) and adversarial tamper cases.
+- **Verifiers** in Python and Rust, built independently and checked against each other: `Freivalds`
+  matrix-product verification over `P = 2**61 - 1`; the Goldilocks field; NTT; the sumcheck protocol;
+  SHA-256; and `k`-challenge Fiat-Shamir-bound Freivalds (ADR 0004).
+- **Chain prototype** (`crates/abacus-chain`): mine and verify blocks; bit-count difficulty; an
+  ancestor-derived retarget; greatest-cumulative-work fork choice; and an optional **memory-hard A'**
+  layer (a data-dependent epoch dataset with header-random gathered operands, spec/04).
+- **Multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync, greatest-work adoption and
+  reorg rollback; a three-process demo converges.
+- **Falsifier probes and decisions**: instance-structure collapse, work exponent, Freivalds forgery,
+  memory-hard balance, and GPU attempt rate, with records in `docs/decisions/`.
+- **GPU baselines** (`cuda/`): Goldilocks matmul CPU vs GPU, gathered-read bandwidth, and the A'
+  attempt rate on the CMP 50HX.
 - One local check command (`python scripts/check.py`).
 
 The ordinary check gate uses standard libraries only. Cargo builds offline without third-party
 crates. GitHub Actions are intentionally absent; checks run locally.
+
+## Where this stands
+
+- **Candidate A** (header-bound Freivalds matmul PoW) is a **positive result**: sound (with `k`
+  Fiat-Shamir challenges), simple, GPU-optimal; recorded downsides are ASIC-friendliness and no
+  usefulness (ADR 0005).
+- **Candidate A'** adds memory-hardness (gathered operands over an epoch dataset) and is measured
+  bandwidth-bound on the CMP at ~70-100 attempts/s (`docs/research/attempt-rate-v1.md`); it raises the
+  ASIC barrier but does not remove it.
+- **Candidate B** (NTT/sumcheck) is a secondary study; **C** (MSM/KZG) is a not-post-quantum reference
+  (ADR 0003).
+- Two design bugs were found and fixed: a single-challenge Freivalds forgery (ADR 0004) and an
+  `O(k*n^3)` Fiat-Shamir derivation blow-up with the `n > 2k` constraint (ADR 0006).
+- The local multi-node gate (E6) passes; no external testnet, consensus hardening or audit exists yet.
 
 ## Run locally
 
@@ -43,7 +63,14 @@ deterministic Python/Rust differential corpus. Experiments write to an ignored `
 - [Research plan](01-ABACUS-RESEARCH-PLAN.md) — objective, candidates, test plan, gates.
 - [Critical path](docs/CRITICAL-PATH.md) — the single open decision and decisive experiments.
 - [Status](docs/STATUS.md) — what is implemented.
-- [Threat model](docs/THREAT-MODEL.md) — linearity, precomputation, reuse, resource attacks.
+- [Threat model](docs/THREAT-MODEL.md) — linearity, precomputation, reuse, resources, quantum and ASIC posture.
+- Specifications: [`spec/01`](spec/01-abacus-lab-v1.md) (lab), [`spec/02`](spec/02-sumcheck-ntt-v1.md)
+  (sumcheck/NTT), [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md) (candidate A),
+  [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md) (candidate A').
+- Decisions: `docs/decisions/0001`-`0008` (research boundary, work functions, verification cost,
+  Freivalds binding, candidate A, Fiat-Shamir derivation, ASIC posture, A' balance).
+- Research notes: `docs/research/` (GPU baselines, verifier throughput, memory-hard balance and
+  attempt rate, local prototype, multi-node testnet).
 - [Language policy](docs/LANGUAGE.md).
 
 ## Scope boundary
