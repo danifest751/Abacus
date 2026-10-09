@@ -38,9 +38,12 @@ regression test; nothing was weakened. The encoding changes are **breaking** for
 - **Linear segment fold collapses.** `cuda/attempt_bench.cu` v1 folded a segment by a plain `u64`
   sum, which two prefix-sum reads answer (`seg/8` -> 2 reads; `test_linear_segment_fold_collapses_with_prefix_sums`).
   The v1 "memory-hardness is achieved" result (`docs/research/attempt-rate-v1.md`) is **withdrawn**.
-  v2 of the bench folds with a sequential nonlinear mix; it has **not** been compiled or measured
-  (no `nvcc` on the review machine). The v1 gather was also one uncoalesced thread per entry, so its
-  11.6–85 GB/s describe that kernel, not the hardware (warm cooperative reads reach ~416 GB/s).
+  v2 of the bench folds with a sequential nonlinear mix and can replay the v1 fold and the attack.
+  **Measured on the CMP 50HX** (`docs/research/attempt-rate-v2.md`): the prefix-sum attacker is
+  14–466x faster than an honest miner against the v1 fold and becomes matmul-bound; the nonlinear
+  fold costs the honest miner nothing (same rate as the sum). The gather is still one uncoalesced
+  thread per entry (~55–62 GB/s; warm cooperative reads reach ~416 GB/s), so it is not a
+  tuned-miner rate. v1 was also cold-clock: warm `n=256` runs at 348 attempts/s, not 69.
 
 ## Parity and candidate B
 
@@ -54,10 +57,21 @@ regression test; nothing was weakened. The encoding changes are **breaking** for
   verify now derive challenges from a running transcript hash (domain `abacus/sumcheck`).
   `rejects_zero_challenge_forgery` / `test_zero_challenge_forgery_is_rejected`.
 
-## CPPminer compatibility (action required, external repo)
+## CPPminer compatibility (done)
 
-`JOB`/`SUB` wire formats are unchanged, but CPPminer must (1) add `bits` (u32 LE) to the preheader
-between `timestamp` and `nonce`, (2) use `nonce = (extranonce << 32) | counter` (already the case),
-(3) build the A' dataset with the data-dependent `ref(u)`, and (4) re-check its own A' gather fold:
-if it is a linear sum it has the same prefix-sum shortcut. The `B <hex>` block line now carries
-`bits` before `nonce`.
+`JOB`/`SUB` wire formats are unchanged. CPPminer (`feat/abacus-backend`) now (1) puts `bits` (u32 LE)
+in the preheader between `timestamp` and `nonce`, (2) uses `nonce = (extranonce << 32) | counter`
+(already the case), and (3) builds the A' dataset with the data-dependent `ref(u)`, on the host and
+on the device. (4) Its A' gather reads one 8-byte word per entry, so it has no segment fold to
+attack; its `--seg` option was never used by the kernel and is removed, and `--dataset` is a block
+count, not MiB. Verified end to end on the CMP against this node: solo 96/97 jobs accepted, A' solo
+90/91 (dataset 8000 blocks), pool of two miners 84 blocks, 78 stale, 0 invalid
+(`docs/research/cppminer-backend-v1.md`). The `B <hex>` block line now carries `bits` before
+`nonce`.
+
+## Pool stale accounting
+
+The node remembers the `(height, prev)` of each connection's last `JOB`; a `SUB` after the tip moved
+is counted as **stale** (answered `BAD stale`, not verified). The earlier "0 stale" pool result
+counted only accepted submissions; with two miners the losing solution of each height race is
+stale (`pool_counts_a_solution_for_an_outdated_job_as_stale`).

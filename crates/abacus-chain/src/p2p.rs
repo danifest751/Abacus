@@ -271,33 +271,53 @@ pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// Per-miner accounting: accepted and rejected submissions keyed by extranonce. Only full blocks
-/// exist (there is no share target below the block target), so "accepted" = blocks appended.
+/// Result of one `SUB`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// Valid block, appended.
+    Accepted,
+    /// The tip moved since this connection's last `JOB` (another miner won the height); not verified.
+    Stale,
+    /// Malformed, out of the extranonce range, bad timestamp, or failed validation.
+    Rejected,
+}
+
+/// Per-miner counters (keyed by extranonce). Only full blocks exist (there is no share target below
+/// the block target), so "accepted" = blocks appended.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MinerStats {
+    pub extranonce: u64,
+    pub accepted: u64,
+    pub stale: u64,
+    pub rejected: u64,
+}
+
 #[derive(Default)]
 pub struct PoolStats {
-    inner: Mutex<BTreeMap<u64, (u64, u64)>>,
+    inner: Mutex<BTreeMap<u64, MinerStats>>,
 }
 
 impl PoolStats {
-    pub fn record(&self, extranonce: u64, ok: bool) {
+    pub fn record(&self, extranonce: u64, outcome: Outcome) {
         let mut m = self.inner.lock().unwrap();
-        let e = m.entry(extranonce).or_insert((0, 0));
-        if ok {
-            e.0 += 1;
-        } else {
-            e.1 += 1;
+        let e = m.entry(extranonce).or_insert(MinerStats { extranonce, ..Default::default() });
+        match outcome {
+            Outcome::Accepted => e.accepted += 1,
+            Outcome::Stale => e.stale += 1,
+            Outcome::Rejected => e.rejected += 1,
         }
     }
 
-    /// `(extranonce, accepted, rejected)` for every miner that submitted at least once.
-    pub fn snapshot(&self) -> Vec<(u64, u64, u64)> {
-        self.inner.lock().unwrap().iter().map(|(&k, &(a, r))| (k, a, r)).collect()
+    /// Counters of every miner that submitted at least once, by extranonce.
+    pub fn snapshot(&self) -> Vec<MinerStats> {
+        self.inner.lock().unwrap().values().copied().collect()
     }
 }
 
 /// Handle one connection: `SYNC` (serve chain, then close), or repeated `JOB`/`SUB <hex>` on the
 /// same connection. `extranonce` is this miner's nonce-range id; a `SUB` outside the range, with a
-/// timestamp too far in the future or not above the median time past is rejected.
+/// timestamp too far in the future or not above the median time past is rejected. A `SUB` after the
+/// tip moved past this connection's last `JOB` is counted as stale and answered `BAD stale`.
 pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, stats: &PoolStats) {
     let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
     let mut reader = match stream.try_clone() {
@@ -306,6 +326,7 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sta
     };
     let max = max_line(chain.lock().unwrap().profile.n);
     let mut w = stream;
+    let mut last_job: Option<(u64, [u8; 32])> = None; // (height, prev) of the last JOB handed out
     loop {
         let t = match read_line_bounded(&mut reader, max) {
             Ok(Some(t)) => t,
@@ -329,17 +350,21 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sta
                     extranonce,
                 }
             };
+            last_job = Some((job.height, job.prev));
             if writeln!(w, "JOB {}", encode_job(&job)).is_err() {
                 break;
             }
         } else if let Some(rest) = t.strip_prefix("SUB ") {
-            let ok = match decode_sub(rest) {
+            let outcome = match decode_sub(rest) {
+                None => Outcome::Rejected,
+                Some((nonce, _, _)) if nonce >> 32 != extranonce => Outcome::Rejected,
+                Some((_, timestamp, _)) if timestamp > now() + MAX_FUTURE_DRIFT => Outcome::Rejected,
                 Some((nonce, timestamp, c_vec)) => {
-                    if nonce >> 32 != extranonce || timestamp > now() + MAX_FUTURE_DRIFT {
-                        false
+                    let mut c = chain.lock().unwrap();
+                    let tpl = c.template();
+                    if last_job.is_some_and(|job| job != (tpl.height, tpl.prev)) {
+                        Outcome::Stale
                     } else {
-                        let mut c = chain.lock().unwrap();
-                        let tpl = c.template();
                         let ph = preheader(&c.chain_id, c.version, tpl.height, &tpl.prev, timestamp, tpl.bits, nonce);
                         let block = Block {
                             height: tpl.height,
@@ -351,13 +376,20 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, sta
                             id: block_id(&ph, &c_vec),
                             c: c_vec,
                         };
-                        c.append_checked(block)
+                        if c.append_checked(block) {
+                            Outcome::Accepted
+                        } else {
+                            Outcome::Rejected
+                        }
                     }
                 }
-                None => false,
             };
-            stats.record(extranonce, ok);
-            let reply = if ok { format!("OK {}", chain.lock().unwrap().height()) } else { "BAD".to_string() };
+            stats.record(extranonce, outcome);
+            let reply = match outcome {
+                Outcome::Accepted => format!("OK {}", chain.lock().unwrap().height()),
+                Outcome::Stale => "BAD stale".to_string(),
+                Outcome::Rejected => "BAD".to_string(),
+            };
             if writeln!(w, "{reply}").is_err() {
                 break;
             }

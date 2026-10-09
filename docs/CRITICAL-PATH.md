@@ -43,8 +43,9 @@ chain. If not, the correct outcome is an **explicit, published negative result**
     dominates on the CMP; the A' gate requires a large-slice gather and/or an int8-representable
     modulus, plus a measured int8 matmul rate and a warm gathered bandwidth.
   - **Status (ADR 0010):** the large-slice attempt-rate result is withdrawn (its linear segment fold
-    collapses under prefix sums); the dataset references are now data-dependent; storage need is
-    `8 * N` bytes. A' is not shown to be memory-hard.
+    collapses under prefix sums — measured 14–466x attacker advantage, `attempt-rate-v2.md`); the
+    dataset references are now data-dependent; storage need is `8 * N` bytes. A' is not shown to be
+    memory-hard.
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
   transcript; verifier checks in `O(log n)`.
   - Falsifiers: NTT linearity (block/butterfly reuse, precomputed twiddle plans); transcript
@@ -110,5 +111,5 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
   plus an A' sync test; a 3-process demo converges
   (`docs/research/multi-node-testnet-v1.md`, `crates/abacus-chain`).
 - **Recorded deviation from §6.** Chain, pool and CPPminer work went beyond the parked scope while
-  D5/D6 were open, and the review found consensus bugs there (ADR 0010). Those bugs are fixed; the
-  chain is frozen at the E6 gate except for the CPPminer v2 compatibility update.
+  D5/D6 were open, and the review found consensus bugs there (ADR 0010). Those bugs are fixed and
+  CPPminer is updated to encoding v2; the chain is frozen at the E6 gate.

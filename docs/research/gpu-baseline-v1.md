@@ -54,6 +54,21 @@ superlinearly — does not fire for dense matmul). Caveat: the CPU baseline is n
 would narrow the constant, and Strassen also lowers the work exponent (see `omega_probe.py`), but
 neither is superlinear in the way that would break monotonicity.
 
+## Warm re-measurement (2026-10-09, review)
+
+Same source (sha256 `159270b1…`), same card, after a 4 s GPU warm-up so the `cmp-idle-governor` has
+raised the clocks (SM 1950–1965 MHz, ~170 W). Three runs each, spread < 1%:
+
+| n | GPU s | GPU GMAC/s | CPU GMAC/s (naive, 1 thread) | GPU / CPU |
+|---:|---:|---:|---:|---:|
+| 512 | 0.000700 | 191.7 | 0.153 | 1250x |
+| 1024 | 0.005274 | 203.6 | — | — |
+| 2048 | 0.051780 | 165.9 | — | — |
+
+The table above (44–64 GMAC/s) was a **cold-clock** run, ~4x low — the same artifact as in
+`gather-bandwidth-v1.md`. Use ~190 GMAC/s for the naive kernel. This does not change the D5
+status: one naive single-threaded CPU point and no energy measurement.
+
 ## Next (GPU)
 
 - A tensor-core matmul baseline and an NTT baseline, on the same matched CPU scope, to bound the

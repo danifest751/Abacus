@@ -117,6 +117,10 @@ fn start_pool(p: Profile, id: [u8; 32]) -> (std::net::SocketAddr, std::sync::Arc
     (addr, shared, stats)
 }
 
+fn ms(extranonce: u64, accepted: u64, stale: u64, rejected: u64) -> p2p::MinerStats {
+    p2p::MinerStats { extranonce, accepted, stale, rejected }
+}
+
 fn rpc(w: &mut std::net::TcpStream, r: &mut std::io::BufReader<std::net::TcpStream>, line: &str) -> String {
     use std::io::{BufRead, Write};
     writeln!(w, "{line}").unwrap();
@@ -148,7 +152,7 @@ fn solo_job_submit_accepts_and_appends() {
     let reply = rpc(&mut w, &mut r, &format!("SUB {}", p2p::encode_sub(nonce, job.timestamp, &c)));
     assert!(reply.starts_with("OK"), "reply was {reply:?}");
     assert_eq!(shared.lock().unwrap().height(), 1);
-    assert_eq!(stats.snapshot(), vec![(job.extranonce, 1, 0)]);
+    assert_eq!(stats.snapshot(), vec![ms(job.extranonce, 1, 0, 0)]);
 }
 
 #[test]
@@ -179,7 +183,7 @@ fn pool_rejects_nonce_outside_extranonce_and_future_timestamp() {
     assert_eq!(rpc(&mut w, &mut r, &format!("SUB {}", p2p::encode_sub(nonce, far, &c))), "BAD");
 
     assert_eq!(shared.lock().unwrap().height(), 0);
-    assert_eq!(stats.snapshot(), vec![(job.extranonce, 0, 2)]);
+    assert_eq!(stats.snapshot(), vec![ms(job.extranonce, 0, 0, 2)]);
 }
 
 #[test]
@@ -205,7 +209,7 @@ fn per_miner_stats_are_separate() {
     }
     assert_ne!(ens[0], ens[1]);
     assert_eq!(shared.lock().unwrap().height(), 2);
-    assert_eq!(stats.snapshot(), vec![(ens[0], 1, 0), (ens[1], 1, 0)]);
+    assert_eq!(stats.snapshot(), vec![ms(ens[0], 1, 0, 0), ms(ens[1], 1, 0, 0)]);
 }
 
 #[test]
@@ -252,4 +256,37 @@ fn sync_rejects_peer_chain_with_lowered_difficulty() {
     let mut b = tmpl.clone();
     assert_eq!(p2p::sync_from(&mut b, &addr.to_string()).unwrap(), 0);
     assert_eq!(b.height(), 0);
+}
+
+#[test]
+fn pool_counts_a_solution_for_an_outdated_job_as_stale() {
+    use abacus_chain::mine_from;
+    use std::io::BufReader;
+    use std::net::TcpStream;
+
+    let p = Profile { n: 4, k: 4, bits: 3 };
+    let (addr, shared, stats) = start_pool(p, [11u8; 32]);
+    let mut conns = Vec::new();
+    let mut jobs = Vec::new();
+    for _ in 0..2 {
+        let stream = TcpStream::connect(addr).unwrap();
+        let mut w = stream.try_clone().unwrap();
+        let mut r = BufReader::new(stream);
+        let job = p2p::decode_job(rpc(&mut w, &mut r, "JOB").strip_prefix("JOB ").unwrap()).unwrap();
+        jobs.push(job);
+        conns.push((w, r));
+    }
+    // Both miners solve the same height; the second submission arrives after the tip moved.
+    let mut replies = Vec::new();
+    for ((w, r), job) in conns.iter_mut().zip(jobs.iter()) {
+        let cp = Profile { n: 4, k: 4, bits: job.bits };
+        let base = p2p::nonce_base(job.extranonce);
+        let (nonce, c, _) =
+            mine_from(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, base, 1_000_000, None).unwrap();
+        replies.push(rpc(w, r, &format!("SUB {}", p2p::encode_sub(nonce, job.timestamp, &c))));
+    }
+    assert!(replies[0].starts_with("OK"));
+    assert_eq!(replies[1], "BAD stale");
+    assert_eq!(shared.lock().unwrap().height(), 1);
+    assert_eq!(stats.snapshot(), vec![ms(jobs[0].extranonce, 1, 0, 0), ms(jobs[1].extranonce, 0, 1, 0)]);
 }

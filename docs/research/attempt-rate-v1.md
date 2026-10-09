@@ -7,7 +7,8 @@
 > GB/s), the dataset was a constant `0x5A` fill, and `n=512` came out faster than `n=256` with 4x
 > the gather and 8x the matmul — consistent with the cold-clock artifact of
 > `gather-bandwidth-v1.md` (64 attempts run for about one second). The raw table is kept for the
-> record. `cuda/attempt_bench.cu` v2 uses a nonlinear fold and has not been measured yet.
+> record. Superseded by `attempt-rate-v2.md`, which measures the attack (14–466x) and the warm
+> rates.
 
 
 Date: 2026-10-09. Bench: `cuda/attempt_bench.cu`, CMP 50HX (sm_75). Per attempt: gather `n^2` field

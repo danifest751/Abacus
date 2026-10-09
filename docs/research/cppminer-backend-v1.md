@@ -2,12 +2,15 @@
 
 Date: 2026-10-09. Repo: `danifest751/CPPminer`, branch `feat/abacus-backend` (from `ca259ff`).
 
-> **Compatibility (ADR 0010).** Everything below was measured against encoding **v1**. The node now
-> uses **v2**: the preheader gains `bits` (u32 LE) between `timestamp` and `nonce`, the A' dataset
-> reference is data-dependent (`ref(u) = LE64(blk[u-1][0..8]) mod u`), and `SUB` must stay in the
-> miner's `extranonce` range. CPPminer must be updated before it can mine against this node again,
-> and its A' gather fold must be checked: a linear sum has the prefix-sum shortcut. The "GPU
-> dataset ... data-dependent chain" below was index-dependent only in v1.
+> **Compatibility (ADR 0010).** The sections below up to "Encoding v2" were measured against
+> encoding **v1**. CPPminer is now on **v2** (see the last section). The "GPU dataset ...
+> data-dependent chain" below was index-dependent only in v1.
+>
+> **Correction to the A' mock table.** `--dataset` was always a **block count** (32-byte blocks), not
+> MiB, and `--seg` was parsed but never used by the kernel. The "dataset 1 GiB, seg 4 KiB / 64 KiB"
+> rows therefore ran on 1024 blocks (32 KiB) with identical kernels; their difference and the
+> "gather dominates" reading are not supported. The `gather GB/s` column also counted 32 bytes per
+> element although 8 are read.
 
 The Abacus PoW (candidate A) is integrated into CPPminer as a new algorithm:
 
@@ -153,8 +156,31 @@ count instead of one thread per element, leaving most of `A`, `B` unwritten).
   small `n`).
 - The A' gather is wired into CPPminer (above) but not yet updated to encoding v2.
 
+## Encoding v2 (2026-10-09, ADR 0010) — verified
+
+Changes in `src/abacus/cp_abacus.{cu,cpp}`, `include/cp_abacus.h`: `bits` (u32 LE) in the preheader
+between `timestamp` and `nonce` (mock and solo); data-dependent dataset reference
+`ref(u) = LE64(blk[u-1][0..8]) mod u` on the host and in `dataset_chain_kernel`; `--dataset` is
+explicitly a block count (`long long`); `--seg` removed (warns if passed); the A' mock reports
+8 bytes read per gathered element.
+
+End to end on the CMP 50HX against `abacus-node` at Abacus HEAD (`n = 64`, `bits = 4` start):
+
+| mode | miner | node |
+|---|---|---|
+| solo, 10 s | jobs=97 found=96 | height 96; 96 accepted, 0 stale, 0 rejected |
+| A' solo, dataset 8000 blocks, 10 s | jobs=91 found=90 | height 90; 90 accepted, 0 stale, 0 rejected |
+| pool, two miners, 8 s | found 41 + 43 | height 84; accepted 41 + 43, stale 38 + 40, rejected 0 |
+
+Every accepted block passed the node's v2 checks (committed `bits` equal to the retarget, MTP
+timestamp, extranonce range, FS Freivalds), so the CUDA preheader, instance, score and A' dataset
+match the Rust chain byte for byte. Difficulty rose during the runs (work 16128 for 96 blocks), i.e.
+the enforced retarget reacted to fast blocks. In the pool every losing submission is stale (the other
+miner won the height); none is invalid. The earlier "0 stale" pool figure counted only accepted
+submissions. Script: `~/v2_e2e.sh` on the server.
+
 ## Next
 
-1. Update to encoding v2 (ADR 0010) and re-verify solo/pool/A' against the node.
+1. Nothing on the critical path; CPPminer stays parked (CRITICAL-PATH §6).
 2. GPU-side expand/score; larger `n`.
 3. A' memory-hard gather in the CPPminer backend.

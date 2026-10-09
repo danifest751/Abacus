@@ -32,9 +32,9 @@ English is primary.
   timeouts and a connection cap; lock-free fetch/validate; periodic `--resync`; reorg by adopting a
   higher-work chain; a solo/pool `JOB`/`SUB` protocol with per-miner extranonce ranges and per-miner
   accounting (`docs/research/multi-node-testnet-v1.md`). This is the E6 gate.
-- A **CPPminer backend** (`--algo abacus`, branch `feat/abacus-backend` in `danifest751/CPPminer`) built
-  against encoding v1. **It must be updated for v2** before it can mine against this node (ADR 0010,
-  `docs/research/cppminer-backend-v1.md`).
+- A **CPPminer backend** (`--algo abacus`, branch `feat/abacus-backend` in `danifest751/CPPminer`),
+  updated to encoding v2 and verified end to end on the CMP against this node: solo, pool with
+  per-miner/stale accounting, and A' solo (ADR 0010, `docs/research/cppminer-backend-v1.md`).
 - ASIC posture and candidate A' (ADR 0007, 0008, spec/04): a data-dependent epoch dataset
   (`reference/memhard_dataset.py`, `build_dataset`), a balance probe
   (`docs/research/memhard-balance-v1.md`) and a gather-bandwidth probe
@@ -47,11 +47,14 @@ No GPU job, paid CI or GitHub Actions. Experiments write to an ignored `artifact
 ## GPU
 
 - `cuda/goldilocks_matmul_bench.cu` — Goldilocks matmul throughput baseline on the CMP 50HX (sm_75):
-  ~44–64 GMAC/s with a naive tiled kernel; ~415x a naive single-threaded CPU at n=512. A
-  **throughput baseline**, not a matched D5 comparison (`docs/research/gpu-baseline-v1.md`).
+  ~166–204 GMAC/s warm with a naive tiled kernel (the earlier 44–64 was cold-clock); ~1250x a naive
+  single-threaded CPU at n=512. A **throughput baseline**, not a matched D5 comparison
+  (`docs/research/gpu-baseline-v1.md`).
 - `cuda/gather_bench.cu` — warm cooperative gathered reads ~416 GB/s.
-- `cuda/attempt_bench.cu` — A' attempt rate. **v1 results withdrawn** (linear fold, uncoalesced
-  gather; ADR 0010). v2 (nonlinear fold) is not yet compiled or measured.
+- `cuda/attempt_bench.cu` — A' attempt rate. v1 withdrawn; **v2 measured**
+  (`docs/research/attempt-rate-v2.md`): the prefix-sum attack on the v1 linear fold is 14–466x
+  faster than honest mining; the nonlinear fold has no honest-side cost; the naive gather is
+  ~55–62 GB/s (a tuned cooperative gather is not measured).
 
 ## Open findings (not claims)
 
@@ -61,7 +64,8 @@ No GPU job, paid CI or GitHub Actions. Experiments write to an ignored `artifact
 - **D5 is not done.** Only a throughput point exists; the matched energy x time CPU/GPU comparison
   that D5 requires has not been run.
 - **D6 (nonlinear anchor) is not done.**
-- The `(n, D, k)` profile must be re-derived under ADR 0009.
+- The `(n, D, k)` profile must be re-derived under ADR 0009 (the verifier bench is re-run:
+  `k = 2` costs ~5% of the CPU work at `n = 256`).
 
 ## Not implemented (by scope)
 
@@ -71,6 +75,6 @@ No GPU job, paid CI or GitHub Actions. Experiments write to an ignored `artifact
 
 ## Next
 
-Per `docs/CRITICAL-PATH.md`: (1) re-derive the `(n, D, k)` profile under ADR 0009 and re-run the
-verifier bench; (2) the matched CPU/GPU D5 scope; (3) the D6 anchor note. Chain, pool and CPPminer
-work stays parked (CRITICAL-PATH §6) except for the v2 compatibility update.
+Per `docs/CRITICAL-PATH.md`: (1) fix the `(n, D, k)` profile under ADR 0009; (2) the matched CPU/GPU
+D5 scope (energy x time, multi-threaded CPU); (3) the D6 anchor note. Chain, pool and CPPminer work
+stays parked (CRITICAL-PATH §6).

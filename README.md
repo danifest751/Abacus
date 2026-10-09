@@ -27,7 +27,7 @@ negative result is a valid outcome.
 - **Multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync, greatest-work adoption and
   reorg rollback; a three-process demo converges.
 - **Falsifier probes and decisions**: instance-structure collapse, work exponent, Freivalds forgery,
-  memory-hard balance, and GPU attempt rate, with records in `docs/decisions/`.
+  Freivalds soundness, memory-hard balance, and GPU attempt rate, with records in `docs/decisions/`.
 - **GPU baselines** (`cuda/`): Goldilocks matmul CPU vs GPU, gathered-read bandwidth, and the A'
   attempt rate on the CMP 50HX.
 - One local check command (`python scripts/check.py`).
@@ -42,7 +42,8 @@ crates. GitHub Actions are intentionally absent; checks run locally.
   usefulness (ADR 0005).
 - **Candidate A'** (gathered operands over an epoch dataset) is **not shown to be memory-hard**: with
   one block per entry the matmul dominates (ADR 0008), and the large-slice attempt-rate result was
-  withdrawn because its linear segment fold collapses under prefix sums (ADR 0010).
+  withdrawn because its linear segment fold collapses under prefix sums — a measured 14–466x
+  attacker advantage on the CMP (ADR 0010, `docs/research/attempt-rate-v2.md`).
 - **Candidate B** (NTT/sumcheck) is a secondary study; **C** (MSM/KZG) is a not-post-quantum reference
   (ADR 0003).
 - Design bugs found and fixed: a single-challenge Freivalds forgery (ADR 0004), an `O(k*n^3)`

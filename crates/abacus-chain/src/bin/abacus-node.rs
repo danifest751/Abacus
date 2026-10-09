@@ -131,8 +131,16 @@ fn main() {
 
     let c = shared.lock().unwrap();
     let tip_hex: String = c.tip().iter().map(|b| format!("{b:02x}")).collect();
-    let miners: Vec<String> =
-        stats.snapshot().iter().map(|(en, a, r)| format!("{{\"extranonce\": {en}, \"accepted\": {a}, \"rejected\": {r}}}")).collect();
+    let miners: Vec<String> = stats
+        .snapshot()
+        .iter()
+        .map(|m| {
+            format!(
+                "{{\"extranonce\": {}, \"accepted\": {}, \"stale\": {}, \"rejected\": {}}}",
+                m.extranonce, m.accepted, m.stale, m.rejected
+            )
+        })
+        .collect();
     println!(
         "{{\"listen\": {listen}, \"height\": {}, \"work\": {}, \"tip\": \"{}\", \"miners\": [{}]}}",
         c.height(),

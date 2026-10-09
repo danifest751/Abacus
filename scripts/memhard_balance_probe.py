@@ -8,7 +8,8 @@ modulus would be needed). This version uses measured-grounded rates instead.
 Rates (CMP 50HX, grounded):
   gathered bandwidth BW_g = 416 GB/s (measured warm, block-cooperative 64 KiB segments; the earlier
   29 GB/s was a cold-clock artifact, see docs/research/gather-bandwidth-v1.md);
-  Goldilocks field matmul ~44 GMAC/s (measured naive kernel);
+  Goldilocks field matmul ~190 GMAC/s (measured naive kernel, warm; the earlier 44 GMAC/s was a
+  cold-clock run, see docs/research/gpu-baseline-v1.md);
   int8 matmul ~69 GMAC/s (CPPMiner Pearl rate on the CMP, for reference).
 
 For an attempt with `n^3` MACs and `G` gathered bytes:
@@ -25,7 +26,7 @@ import json
 import os
 
 BW_G = 416e9          # gathered bytes/s (measured WARM, 64 KiB segments; cold runs under-report)
-RATE_FIELD = 44e9    # Goldilocks MAC/s (measured naive)
+RATE_FIELD = 190e9   # Goldilocks MAC/s, naive tiled kernel, WARM (166-204 measured; 44 was cold-clock)
 RATE_INT8 = 69e9     # int8 MAC/s (CPPMiner CMP reference)
 BLOCK = 32           # one dataset block per A entry in the naive design
 

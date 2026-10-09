@@ -52,7 +52,7 @@ exist.
 Bounded line reads, socket timeouts, a 64-connection cap, no lock held while serving or mining,
 lock-free fetch/validate, periodic `--resync SEC`, median-time-past timestamps and a 120 s future
 bound on submissions. The demo commands above are unchanged; the printed `work` is now an exact
-integer and a `miners` array reports per-extranonce results.
+integer and a `miners` array reports per-extranonce accepted / stale / rejected counts.
 
 ## Next
 

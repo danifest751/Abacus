@@ -11,6 +11,11 @@ Two corrections versus earlier drafts:
 
 Rates used (CMP 50HX): `BW = 416 GB/s` (warm), field matmul `~44 GMAC/s`, int8 `~69 GMAC/s`.
 
+> **Correction.** `~44 GMAC/s` was a cold-clock figure; warm it is ~190 GMAC/s
+> (`gpu-baseline-v1.md`), and the probe now uses 190e9. The "bytes to balance" below are therefore
+> ~4.3x too large for the field rate. The qualitative result (one block per entry is compute-bound)
+> stands. Measured large-slice rates: `attempt-rate-v2.md`.
+
 Gather dominates iff `G > n^3 * BW / rate`.
 
 ## One 32-byte block per A entry (`G = 32 n^2`)

@@ -26,8 +26,28 @@ Work = `n^3` scalar multiplications for the product; verification = one `O(n^2)`
   element), fixed by commit-then-expand (ADR 0006).
 - ~~A recommended parameter profile is therefore `k = 128` with `n >= 512`~~ **Superseded by ADR
   0009:** the per-challenge error is `<= 2^-63`, so `k = 2..3` suffices and the verifier costs
-  `~4..6 n^2`; the bench now also runs `k = 2, 3` (not yet re-measured). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
+  `~4..6 n^2`; re-measured below (v1b). `n` and `k` are protocol parameters; the bench must be re-run for the chosen
   profile.
+
+## v1b — re-run with `k = 2, 3` (ADR 0009)
+
+Same machine and bench (`abacus-verify-bench`, release), challenges now bound to `(preheader, C)`.
+Raw: `artifacts/verify-bench-20261009b.json` (not in Git).
+
+| n | k | build s | verify s | verify / build |
+|---:|---:|---:|---:|---:|
+| 256 | 2 | 0.0878 | 0.0042 | 0.048 |
+| 256 | 3 | 0.0878 | 0.0077 | 0.088 |
+| 256 | 32 | 0.0889 | 0.0350 | 0.39 |
+| 256 | 128 | 0.0872 | 0.1266 | 1.45 |
+| 512 | 2 | 0.7105 | 0.0149 | 0.021 |
+| 512 | 3 | 0.6985 | 0.0188 | 0.027 |
+| 1024 | 2 | 5.6255 | 0.0634 | 0.011 |
+| 1024 | 3 | 5.6239 | 0.0793 | 0.014 |
+| 1024 | 128 | 5.6271 | 1.9951 | 0.35 |
+
+With `k = 2` the verifier is ~21x cheaper than the (naive CPU) work already at `n = 256`, where
+`k = 128` made it 1.45x **more** expensive. The verifier no longer forces large `n`.
 
 ## Caveats
 
