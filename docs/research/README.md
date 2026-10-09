@@ -10,6 +10,9 @@ its source hashes and environment.
 | A8 succinct-proof cost (test 1) | [a8-proof-cost-v1](a8-proof-cost-v1.md) | — |
 | A8 escape E1 (winner-only STARK of the hash) | [e1-hash-proof-v1](e1-hash-proof-v1.md) | — |
 | Prior art (Pearl, Nockchain, Aleo, PoNW, verifiable inference) | [prior-art-v1](prior-art-v1.md) | — |
+| Interactive tensor-throughput attestation (ADR 0014) | [attest-v1](attest-v1.md) | — |
+
+Write-up for external readers: [`docs/papers/tensor-pow-limits.md`](../papers/tensor-pow-limits.md).
 | GPU matmul, gathered reads, A' attempt folds | [gpu-suite-v1](gpu-suite-v1.md) | [gpu-baseline-v1](gpu-baseline-v1.md) (cold clock), [gather-bandwidth-v1](gather-bandwidth-v1.md) (64 KiB only, single launch), [attempt-rate-v1](attempt-rate-v1.md) (**withdrawn**: linear fold), [attempt-rate-v2](attempt-rate-v2.md) (attack vs naive kernel) |
 | A' balance (gather vs matmul) | [memhard-balance-v2](memhard-balance-v2.md) | [memhard-balance-v1](memhard-balance-v1.md) (bandwidth-only model, cold rate) |
 | Verifier cost | [verifier-throughput-v2](verifier-throughput-v2.md) | [verifier-throughput-v1](verifier-throughput-v1.md) (`k = 128` profile) |

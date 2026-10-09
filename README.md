@@ -21,6 +21,10 @@ English is the primary repository language.
   products at ~78 TMAC/s on a CMP 50HX (~440x the Goldilocks kernel). Test 1 (ADR 0013): proving the
   product succinctly on every attempt costs more than the product; two escapes remain untested.
 - **Candidates B (NTT/sumcheck) and C (MSM/KZG)**: verifiers only; weaker premises (ADR 0003).
+- **Tensor-throughput attestation** (`spec/06`, ADR 0014) — the active track: an interactive
+  commit-then-sample proof that a GPU did a stated amount of exact int8 matmul work; certifies 40–49
+  TMAC/s on a CMP 50HX with millisecond verification (`crates/abacus-attest`, `cuda/attest_prover.cu`).
+- Write-up of the PoW findings: [`docs/papers/tensor-pow-limits.md`](docs/papers/tensor-pow-limits.md).
 
 ## What is implemented
 
@@ -47,11 +51,14 @@ Raw experiment output goes to an ignored `artifacts/`.
 ```
 spec/        specifications (lab, sumcheck/NTT, candidate A, candidate A')
 reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset)
-crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner)
-cuda/        GPU benches (Goldilocks and int8 matmul, NTT, gathered reads, A' attempt)
+crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner),
+             abacus-attest (tensor-throughput attestation: verifier, reference prover)
+cuda/        GPU benches (Goldilocks and int8 matmul, NTT, gathered reads, A' attempt) and the
+             attestation prover
 scripts/     check gate, GPU suite, probes
 tests/       Python tests incl. Python/Rust differential and parity
-docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0013), research record
+docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0014), research record,
+             papers
 ```
 
 ## Documentation
@@ -61,8 +68,8 @@ docs/        assessment, critical path, status, threat model, decisions (ADR 000
   · [Review guide](docs/REVIEW.md) · [Research plan](01-ABACUS-RESEARCH-PLAN.md)
 - Specifications: [`spec/01`](spec/01-abacus-lab-v1.md), [`spec/02`](spec/02-sumcheck-ntt-v1.md),
   [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md),
-  [`spec/05`](spec/05-int8-matmul-pow.md).
-- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0013). Research record:
+  [`spec/05`](spec/05-int8-matmul-pow.md), [`spec/06`](spec/06-tensor-throughput-attestation.md).
+- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0014). Research record:
   [`docs/research/`](docs/research/README.md).
 
 ## Scope boundary

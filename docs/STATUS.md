@@ -1,7 +1,8 @@
 # Research status
 
-Date: 2026-10-09. Phase: candidate A complete and assessed (`docs/ASSESSMENT.md`); the primary line
-of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
+Date: 2026-10-09. Phase: the PoW line is assessed (`docs/ASSESSMENT.md`, ADR 0013) and written up
+(`docs/papers/tensor-pow-limits.md`); the active track is an interactive proof of tensor throughput
+(ADR 0014, spec/06).
 
 ## Results
 
@@ -22,6 +23,10 @@ of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
   plain hash) and E2 (deep requantized chain) remain; E1's winner proof measured at ~4–9 min on 8 CPU
   threads for `n = 4096` (`e1-hash-proof-v1`). Pearl already deploys an int8-GEMM PoW (`prior-art-v1`).
 - **Candidates B and C**: verifiers only; B's verification advantage is a `log n` factor (ADR 0003).
+- **Tensor-throughput attestation (spec/06)**: commit-then-sample over fresh int8 products; GPU prover
+  byte-compatible with the Rust verifier; certifies 40–49 TMAC/s on a CMP 50HX (GEMM alone 74–80),
+  online verification 7–26 ms; cheaters skipping 1/5/10% of rows passed 56/16/0 of 80 challenges as
+  predicted (`attest-v1`).
 - Research record and current notes: `docs/research/README.md`.
 
 ## Implemented
@@ -51,6 +56,7 @@ of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
 
 ## Next
 
-Candidate A8 after test 1 (ADR 0013): estimate the E1 winner proving time (STARK of the hash of `C`
-plus an `O(n^2)` Freivalds check) with an existing prover on this GPU class; stop E1 if it exceeds a
-block interval. Then E2 or the matched hardware comparison (D5).
+Attestation (ADR 0014): a cheaper expansion PRF to tighten the certified rate, sustained-throughput
+schedules, and a literature check against GPU-telemetry puzzles. Write-up: external review of
+`docs/papers/tensor-pow-limits.md`. PoW candidates: no further work planned (E1 needs a GPU prover;
+E2 is untested).

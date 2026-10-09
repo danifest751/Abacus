@@ -1,0 +1,21 @@
+[package]
+name = "abacus-attest"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Interactive proof of tensor throughput: commit-then-sample attestation of int8 GEMM work (spec/06)."
+
+[dependencies]
+abacus-verifier = { path = "../abacus-verifier" }
+
+[lib]
+name = "abacus_attest"
+path = "src/lib.rs"
+
+[[bin]]
+name = "abacus-attest-verify"
+path = "src/bin/abacus-attest-verify.rs"
+
+[[bin]]
+name = "abacus-attest-cpu-prover"
+path = "src/bin/abacus-attest-cpu-prover.rs"
