@@ -104,9 +104,10 @@ Pick one distinguishing property and test it; stop if none survives.
 
 1. **Work on general-purpose AI hardware (A8, chosen — ADR 0012).** Use int8 tensor-core matmul so
    that the best mining hardware is AI hardware rather than a single-purpose ASIC. First result: ~78
-   TMAC/s exact on the CMP 50HX (~440x the Goldilocks kernel); blocker: the commitment to and transfer
-   of `C`, which needs a succinct argument (`int8-matmul-v1`). The A' bandwidth route (Ethash-class)
-   is not pursued.
+   TMAC/s exact on the CMP 50HX (~440x the Goldilocks kernel). Test 1 (ADR 0013): a per-attempt
+   succinct commitment to `C` costs more than the product and shifts 45%+ of the work to NTT/hashing,
+   so the single-GEMM form fails; E1 (winner-only proof of a plain hash) and E2 (deep requantized
+   chain) remain untested. The A' bandwidth route (Ethash-class) is not pursued.
 2. **Useful work.** Accept external matrices (Pearl-style) and design/verify the anchor that restores
    non-reusability. This is the open research problem the project set out to study.
 3. **Proof size.** Replace shipping `C` by a commitment with a sumcheck-based matmul proof; measure

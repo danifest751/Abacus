@@ -103,8 +103,9 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - **E6 prototype done** (beyond the minimal D6 simulator of §6): chain, sync and a GPU miner, used to
   validate the construction end to end (`chain-prototype-v2`). It found and fixed consensus bugs
   (ADR 0010) and is frozen.
-- **A8 started** (ADR 0012): ~78 TMAC/s exact int8 on tensor cores; blocked on a succinct argument
-  for `C` (shipping or hashing `C` dominates at practical `n`).
+- **A8** (ADR 0012, 0013): ~78 TMAC/s exact int8 on tensor cores. Test 1: a per-attempt succinct
+  commitment to `C` costs more than the product, so the single-GEMM form is stopped; escapes E1/E2 are
+  open hypotheses.
 - **Answer to §1**: `docs/ASSESSMENT.md` — yes at the construction level, but the linear algebra adds
   cost, not security or usefulness; three directions could change that, otherwise publish the neutral
   result.

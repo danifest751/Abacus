@@ -44,6 +44,13 @@ Shipping `C` is infeasible at the sizes where the matmul dominates. Required ins
 - no linear score (computable from `A (B r)` without the product) and no sampled-row verification
   (grindable).
 
+## 3a. Test 1 result (ADR 0013)
+
+A per-attempt polynomial commitment to `C` costs 19–57x the GEMM with our kernels and, even at an ideal
+lower bound, more than the GEMM for `n <= 4096`; the single-GEMM form above is stopped. Open escapes:
+**E1** — score on a plain hash of `C`, winner-only STARK that the hashed `C` equals `A * B`; **E2** — a
+deep chain of requantized int8 GEMMs with one output commitment and GKR (`a8-proof-cost-v1`).
+
 ## 4. Falsifiers
 
 Listed in ADR 0012: prover overhead of the argument vs the GEMM; proof size; matched CPU/GPU and

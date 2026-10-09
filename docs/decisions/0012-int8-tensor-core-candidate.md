@@ -2,6 +2,8 @@
 
 Status: accepted research direction (2026-10-09). Adds candidate A8 (spec/05) as the primary line of
 work, following direction 1 of `docs/ASSESSMENT.md`. Candidate A stays the reference construction.
+Amended by ADR 0013: test 1 stops the single-GEMM form with a per-attempt commitment; escapes E1/E2
+remain open.
 
 ## Context
 

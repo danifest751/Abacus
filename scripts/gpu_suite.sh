@@ -4,7 +4,7 @@
 # Run on a CUDA host from a checkout (or an exported tree) of this repository:
 #   bash scripts/gpu_suite.sh [out_dir] [arch]
 # Output: <out_dir>/env.txt (GPU, driver, nvcc, source hashes) and one JSON line per run in
-# <out_dir>/{matmul,gather,attempt,int8}.jsonl. Defaults: out_dir=artifacts/gpu-<UTC date>, arch=sm_75.
+# <out_dir>/{matmul,gather,attempt,int8,ntt}.jsonl. Defaults: out_dir=artifacts/gpu-<UTC date>, arch=sm_75.
 # Every bench warms the GPU first and reports the median of repeated CUDA-event timings.
 set -euo pipefail
 
@@ -27,6 +27,7 @@ for b in goldilocks_matmul_bench gather_bench attempt_bench; do
   "$NVCC" -O3 -arch="$ARCH" "$ROOT/cuda/$b.cu" -o "$BIN/$b"
 done
 "$NVCC" -O3 -arch="$ARCH" "$ROOT/cuda/int8_matmul_bench.cu" -lcublas -o "$BIN/int8_matmul_bench"
+"$NVCC" -O3 -arch="$ARCH" "$ROOT/cuda/ntt_bench.cu" -o "$BIN/ntt_bench"
 
 clocks() { nvidia-smi --query-gpu=clocks.sm,clocks.mem,power.draw,temperature.gpu --format=csv,noheader; }
 
@@ -55,6 +56,11 @@ done
 for n in 256 512 1024 2048 4096 8192; do
   "$BIN/int8_matmul_bench" "$n" 7 3 | tr -d '\n' >> "$OUT/int8.jsonl"
   echo " # $(clocks)" >> "$OUT/int8.jsonl"
+done
+
+: > "$OUT/ntt.jsonl"
+for l in 20 22 24 25 26 27; do
+  "$BIN/ntt_bench" "$l" 7 3 >> "$OUT/ntt.jsonl"
 done
 
 echo "$OUT"

@@ -16,8 +16,10 @@ of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
   linear fold is broken by prefix sums (ADR 0010).
 - **Candidate A8 (spec/05)**: exact int8 product on tensor cores, ~78 TMAC/s on the CMP 50HX (~440x
   the Goldilocks kernel), verified by Freivalds over Goldilocks. Blocker: committing to and shipping
-  `C` costs as much as the product below `n ~ 1500` and is 16–256 MiB where the product dominates; a
-  succinct argument for `C = A * B` is required (`int8-matmul-v1`).
+  `C` costs as much as the product below `n ~ 1500` and is 16–256 MiB where the product dominates.
+  Test 1 (ADR 0013): a per-attempt succinct commitment costs more than the product (19–57x measured,
+  >= 1.4x ideal at `n = 4096`), so the single-GEMM form is stopped; escapes E1 (winner-only proof of a
+  plain hash) and E2 (deep requantized chain) are untested.
 - **Candidates B and C**: verifiers only; B's verification advantage is a `log n` factor (ADR 0003).
 - Research record and current notes: `docs/research/README.md`.
 
@@ -48,6 +50,6 @@ of work is now candidate A8, int8 tensor-core matmul (ADR 0012, spec/05).
 
 ## Next
 
-Candidate A8 (ADR 0012): (1) a succinct argument for the committed `C` — the matmul sumcheck with a
-commitment opening — with measured prover overhead and proof size; (2) a matched CPU/AI-hardware
-comparison for int8 (D5). Stop criteria are in ADR 0012.
+Candidate A8 after test 1 (ADR 0013): estimate the E1 winner proving time (STARK of the hash of `C`
+plus an `O(n^2)` Freivalds check) with an existing prover on this GPU class; stop E1 if it exceeds a
+block interval. Then E2 or the matched hardware comparison (D5).
