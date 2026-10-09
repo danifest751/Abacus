@@ -33,6 +33,12 @@ chain. If not, the correct outcome is an **explicit, published negative result**
   verifier checks with Freivalds.
   - Falsifiers: linear decomposition/precompute; plan/basis reuse; screening; whole-result
     outsourcing; challenge chosen by the miner.
+- **A'. Memory-hard Freivalds matmul (ADR 0007).** As A, but the operands are **gathered** from a
+  large, per-epoch, data-dependent dataset with a header-random index, so the bottleneck is **memory
+  bandwidth** (ASIC-harder).
+  - Additional falsifiers: gathered access stays bandwidth-bound and GPU-favourable; work model
+    monotone in bytes fetched; operands not cacheable across attempts; verifier dataset cost; epoch
+    regeneration cheap yet ASIC-hostile.
 - **B. Sumcheck/GKR NTT.** Header → field element / domain; miner computes an NTT + sumcheck
   transcript; verifier checks in `O(log n)`.
   - Falsifiers: NTT linearity (block/butterfly reuse, precomputed twiddle plans); transcript

@@ -18,6 +18,8 @@ English is primary.
   (ADR 0004), and the commit-then-expand derivation + `n > 2k` constraint (ADR 0006;
   `abacus-verify-bench`). Falsifier probes: instance structure, omega, Freivalds forgery.
 - A toy CPU mine-and-verify loop (`scripts/mine_sim.py`).
+- ASIC posture and the memory-hard candidate A' (ADR 0007); gather-bandwidth probe on the CMP
+  (`docs/research/gather-bandwidth-v1.md`).
 - One local check command: `python scripts/check.py`.
 
 The ordinary check gate uses standard libraries; the Rust crate has no third-party dependencies.

@@ -81,3 +81,19 @@ candidate instead of branding:
 
 Do not label the project "quantum-resistant". State the per-candidate posture above.
 
+## 10. ASIC posture (candidate A is ASIC-friendly; A' adds memory-hardness)
+
+Dense matmul is **GPU-optimal and ASIC-optimal**: a tensor-core/systolic ASIC does matmul better than
+any GPU. So "GPU-optimal" does **not** imply ASIC resistance; the property that makes candidate A
+attractive for GPUs is the same one that makes it attractive for ASICs.
+
+Mitigation (ADR 0007): **candidate A'** adds a memory-hard, data-dependent layer — a large epoch
+dataset `D` with header-random **gather** of the operands — so the bottleneck is **memory bandwidth**,
+not multiply throughput, and a fixed ASIC is obsoleted by per-epoch dataset regeneration. Threat
+questions this must answer: is the gathered access bandwidth-bound and GPU-favourable; is the work
+model monotone in bytes fetched; can gathered operands be precomputed/reused; what is the verifier's
+added dataset cost; is epoch regeneration cheap enough yet ASIC-hostile.
+
+Honest caveat: memory-hard algorithms eventually get ASICs (Ethash, scrypt); agility narrows the
+window, it does not close it. The goal is a high ASIC barrier, not immunity.
+
