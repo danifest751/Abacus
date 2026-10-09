@@ -19,6 +19,7 @@ negative result is a valid outcome.
 - Exact Python reference verifier: `Freivalds` matrix-product verification over a prime field.
 - Independent Rust verifier with explicit bounds and overflow analysis.
 - Goldilocks field, NTT and the sumcheck protocol (candidate B) in Python and Rust.
+- A **minimal local prototype** of candidate A (`crates/abacus-chain`): mine and verify a chain.
 - A Goldilocks matmul throughput baseline (`cuda/`), CPU vs GPU (see `docs/research/`).
 - Deterministic differential corpus (Python vs Rust) and adversarial tamper cases.
 - One local check command (`python scripts/check.py`).

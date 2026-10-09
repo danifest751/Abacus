@@ -18,6 +18,8 @@ English is primary.
   (ADR 0004), and the commit-then-expand derivation + `n > 2k` constraint (ADR 0006;
   `abacus-verify-bench`). Falsifier probes: instance structure, omega, Freivalds forgery.
 - A toy CPU mine-and-verify loop (`scripts/mine_sim.py`).
+- A **minimal local prototype** (`crates/abacus-chain`): mine and verify a chain of blocks; a 5-block
+  local run verified end to end (`docs/research/local-prototype-v1.md`). No P2P, mempool or coin.
 - ASIC posture and the memory-hard candidate A' (ADR 0007); gather-bandwidth probe on the CMP
   (`docs/research/gather-bandwidth-v1.md`).
 - Candidate A' spec (memory-hard: epoch dataset + gathered operands), a dataset module

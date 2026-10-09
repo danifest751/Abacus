@@ -1,0 +1,17 @@
+[package]
+name = "abacus-chain"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Minimal local prototype of the header-bound Freivalds matmul PoW (candidate A)."
+
+[dependencies]
+abacus-verifier = { path = "../abacus-verifier" }
+
+[lib]
+name = "abacus_chain"
+path = "src/lib.rs"
+
+[[bin]]
+name = "abacus-mine"
+path = "src/bin/abacus-mine.rs"
