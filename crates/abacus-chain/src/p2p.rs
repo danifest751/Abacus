@@ -8,6 +8,7 @@
 use crate::{block_id, preheader, score, Block, Chain, Profile};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -183,6 +184,7 @@ pub struct Job {
     pub height: u64,
     pub timestamp: u64,
     pub bits: u32,
+    pub extranonce: u64,
 }
 
 pub fn encode_job(j: &Job) -> String {
@@ -193,12 +195,13 @@ pub fn encode_job(j: &Job) -> String {
     v.extend_from_slice(&j.height.to_le_bytes());
     v.extend_from_slice(&j.timestamp.to_le_bytes());
     v.extend_from_slice(&j.bits.to_le_bytes());
+    v.extend_from_slice(&j.extranonce.to_le_bytes());
     hex(&v)
 }
 
 pub fn decode_job(s: &str) -> Option<Job> {
     let v = unhex(s)?;
-    if v.len() != 88 {
+    if v.len() != 96 {
         return None;
     }
     let mut chain_id = [0u8; 32];
@@ -209,7 +212,8 @@ pub fn decode_job(s: &str) -> Option<Job> {
     let height = u64::from_le_bytes(v[68..76].try_into().ok()?);
     let timestamp = u64::from_le_bytes(v[76..84].try_into().ok()?);
     let bits = u32::from_le_bytes(v[84..88].try_into().ok()?);
-    Some(Job { chain_id, version, prev, height, timestamp, bits })
+    let extranonce = u64::from_le_bytes(v[88..96].try_into().ok()?);
+    Some(Job { chain_id, version, prev, height, timestamp, bits, extranonce })
 }
 
 pub fn encode_sub(nonce: u64, timestamp: u64, c: &[u64]) -> String {
@@ -246,8 +250,8 @@ fn now() -> u64 {
 }
 
 /// Handle one connection: `SYNC` (serve chain, then close), or repeated `JOB`/`SUB <hex>` on the
-/// same connection (send a job, accept a block).
-pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>) {
+/// same connection (send a job, accept a block). `extranonce` is this miner's nonce-space offset.
+pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>, extranonce: u64, shares: &AtomicU64) {
     let mut reader = match stream.try_clone() {
         Ok(s) => BufReader::new(s),
         Err(_) => return,
@@ -273,18 +277,19 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>) {
                     height: c.height(),
                     timestamp: now(),
                     bits: c.next_bits(),
+                    extranonce,
                 }
             };
             let _ = writeln!(w, "JOB {}", encode_job(&job));
         } else if let Some(rest) = t.strip_prefix("SUB ") {
             match decode_sub(rest) {
-            Some((nonce, timestamp, c_vec)) => {
-                let mut c = chain.lock().unwrap();
-                if c_vec.len() != c.profile.n * c.profile.n {
-                    let _ = writeln!(w, "BAD");
-                    continue;
-                }
-                let height = c.height();
+                Some((nonce, timestamp, c_vec)) => {
+                    let mut c = chain.lock().unwrap();
+                    if c_vec.len() != c.profile.n * c.profile.n {
+                        let _ = writeln!(w, "BAD");
+                        continue;
+                    }
+                    let height = c.height();
                     let prev = c.tip();
                     let bits = c.next_bits();
                     let ph = preheader(&c.chain_id, c.version, height, &prev, timestamp, nonce);
@@ -298,11 +303,12 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>) {
                         id: block_id(&ph, &c_vec),
                         bits,
                     };
-                if c.append_checked(block) {
-                    let _ = writeln!(w, "OK {}", c.height());
-                } else {
-                    let _ = writeln!(w, "BAD");
-                }
+                    if c.append_checked(block) {
+                        shares.fetch_add(1, Ordering::Relaxed);
+                        let _ = writeln!(w, "OK {}", c.height());
+                    } else {
+                        let _ = writeln!(w, "BAD");
+                    }
                 }
                 None => {
                     let _ = writeln!(w, "BAD");
@@ -315,12 +321,16 @@ pub fn handle_conn(stream: TcpStream, chain: &Mutex<Chain>) {
     let _ = w.flush();
 }
 
-/// Accept connections forever and handle them (sync or solo) against a shared chain.
+/// Accept connections forever; assign each a distinct extranonce and count accepted shares.
 pub fn serve_multi(listener: TcpListener, chain: std::sync::Arc<Mutex<Chain>>) {
+    let next = AtomicU64::new(1);
+    let shares = std::sync::Arc::new(AtomicU64::new(0));
     for stream in listener.incoming() {
         if let Ok(s) = stream {
             let c = std::sync::Arc::clone(&chain);
-            std::thread::spawn(move || handle_conn(s, &c));
+            let en = next.fetch_add(1, Ordering::Relaxed);
+            let sh = std::sync::Arc::clone(&shares);
+            std::thread::spawn(move || handle_conn(s, &c, en, &sh));
         }
     }
 }
