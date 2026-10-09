@@ -5,7 +5,7 @@ Date: 2026-10-09. Status: **current**. Supersedes `gpu-baseline-v1`, `gather-ban
 
 ## Environment and method
 
-- Host `me4me`: NVIDIA CMP 50HX (Turing, sm_75, 20 GiB), driver 610.43.03, CUDA 13.3. During the
+- Lab GPU host: NVIDIA CMP 50HX (Turing, sm_75, 20 GiB), driver 610.43.03, CUDA 13.3. During the
   runs: SM 1950–1995 MHz, memory 7000 MHz, 87–229 W, 39–59 °C (sampled after each bench).
 - Command: `bash scripts/gpu_suite.sh` builds the three benches (`nvcc -O3 -arch=sm_75`) and runs them.
   Every bench keeps the GPU busy for 3 s before timing (the `cmp-idle-governor` otherwise under-clocks

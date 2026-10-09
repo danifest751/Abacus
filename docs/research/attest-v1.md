@@ -4,7 +4,7 @@ Date: 2026-10-09. Status: **current**. spec/06, ADR 0014.
 
 ## Setup
 
-- Prover: `cuda/attest_prover.cu` (sha256 `889c3e63…`), `nvcc -O3 -arch=sm_75 -lcublas`, on `me4me`
+- Prover: `cuda/attest_prover.cu` (sha256 `889c3e63…`), `nvcc -O3 -arch=sm_75 -lcublas`, on the lab GPU host
   (CMP 50HX, driver 610.43.03, CUDA 13.3, cuBLAS 13.6), sequential mode.
 - Verifier: `abacus-attest-verify` (crate sources `lib.rs bd0287a7…`, `net.rs 9b4cd80b…`), release build,
   on the same host (loopback) and on a Windows PC over the LAN (Ryzen 7 8745HS).

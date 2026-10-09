@@ -1,4 +1,5 @@
-//! Candidate T (ADR 0015, spec/07): deep requantized int8 network PoW with row-ticket lottery.
+//! Candidate T (ADR 0015, spec/07), frozen as TNet v1 (ADR 0016): deep requantized int8 network PoW with
+//! row-ticket lottery. Research reference; coin node and miner code lives in a separate repository.
 //!
 //! Per epoch, `L` weight matrices `W_l` (`n x n`, int8) are derived from an epoch seed. Per attempt, an
 //! input `X_0` (`b x n`, int8) is derived from the header digest and a nonce, and the miner runs
@@ -48,6 +49,10 @@ impl TnetParams {
     }
 }
 
+/// Frozen parameter set (ADR 0016): `n = 8192`, `B = 2^16` rows per nonce, `L = 8`, `w = 256` (32 tickets
+/// per row), `M = default_mult(8192) = 2505`. Rows are independent, so a miner may run any batch size.
+pub const TNET_V1: TnetParams = TnetParams { n: 8192, b: 1 << 16, layers: 8, w: 256, mult: 2505 };
+
 /// Fractional bits of the requantization multiplier.
 pub const REQ_SHIFT: u32 = 24;
 
@@ -64,15 +69,32 @@ fn i8s(bytes: Vec<u8>) -> Vec<i8> {
 
 /// `W_l`, row-major (`W[k][j]` at `k n + j`): `expand(SHA256("abacus/tnet-w" || epoch || LE32(l)), n^2)`.
 pub fn epoch_weights(epoch_seed: &[u8; 32], p: &TnetParams) -> Vec<Vec<i8>> {
-    (0..p.layers as u32)
-        .map(|l| {
-            let mut m = Vec::with_capacity(DOM_W.len() + 36);
-            m.extend_from_slice(DOM_W);
-            m.extend_from_slice(epoch_seed);
-            m.extend_from_slice(&l.to_le_bytes());
-            i8s(expand_bytes(&sha256(&m), p.n * p.n))
-        })
-        .collect()
+    (0..p.layers as u32).map(|l| layer_weights(epoch_seed, p.n, l)).collect()
+}
+
+/// `W_l` alone.
+pub fn layer_weights(epoch_seed: &[u8; 32], n: usize, l: u32) -> Vec<i8> {
+    let mut m = Vec::with_capacity(DOM_W.len() + 36);
+    m.extend_from_slice(DOM_W);
+    m.extend_from_slice(epoch_seed);
+    m.extend_from_slice(&l.to_le_bytes());
+    i8s(expand_bytes(&sha256(&m), n * n))
+}
+
+/// `n x n` transpose in 64 x 64 tiles (cache friendly).
+fn transpose(w: &[i8], n: usize) -> Vec<i8> {
+    const T: usize = 64;
+    let mut t = vec![0i8; n * n];
+    for k0 in (0..n).step_by(T) {
+        for j0 in (0..n).step_by(T) {
+            for k in k0..(k0 + T).min(n) {
+                for j in j0..(j0 + T).min(n) {
+                    t[j * n + k] = w[k * n + j];
+                }
+            }
+        }
+    }
+    t
 }
 
 /// `SHA256("abacus/tnet-x0" || header_digest || LE64(nonce))`.
@@ -200,6 +222,95 @@ pub fn forward_all(weights: &[Vec<i8>], p: &TnetParams, seed: &[u8; 32]) -> Vec<
     (0..p.b).map(|i| forward_row(weights, p, seed, i, 1)).collect()
 }
 
+/// Verifier state for one epoch: the weights stored transposed (`WT[j][k] = W[k][j]`), so that every
+/// output entry is a contiguous int8 dot product that compilers vectorise (SIMD). Built once per epoch.
+pub struct EpochVerifier {
+    pub p: TnetParams,
+    wt: Vec<Vec<i8>>,
+}
+
+impl EpochVerifier {
+    pub fn new(weights: &[Vec<i8>], p: TnetParams) -> Self {
+        EpochVerifier { p, wt: weights.iter().map(|w| transpose(w, p.n)).collect() }
+    }
+
+    /// Derive the epoch weights layer by layer and keep only the transposed copy (`L n^2` bytes).
+    pub fn from_seed(epoch_seed: &[u8; 32], p: TnetParams) -> Self {
+        EpochVerifier {
+            p,
+            wt: (0..p.layers as u32).map(|l| transpose(&layer_weights(epoch_seed, p.n, l), p.n)).collect(),
+        }
+    }
+
+    #[inline]
+    fn dot(x: &[i8], col: &[i8]) -> i32 {
+        x.iter().zip(col).map(|(&a, &b)| a as i32 * b as i32).sum()
+    }
+
+    fn layer(&self, x: &[i8], l: usize, threads: usize) -> Vec<i8> {
+        let n = self.p.n;
+        let wt = &self.wt[l];
+        let mut out = vec![0i8; n];
+        let chunk = n.div_ceil(threads.max(1));
+        std::thread::scope(|s| {
+            for (t, dst) in out.chunks_mut(chunk).enumerate() {
+                s.spawn(move || {
+                    for (q, d) in dst.iter_mut().enumerate() {
+                        let j = t * chunk + q;
+                        *d = requant(Self::dot(x, &wt[j * n..(j + 1) * n]), self.p.mult);
+                    }
+                });
+            }
+        });
+        out
+    }
+
+    /// Row `i` of `X_L`, identical to [`forward_row`].
+    pub fn forward_row(&self, seed: &[u8; 32], i: usize, threads: usize) -> Vec<i8> {
+        let mut x = x0_row(seed, self.p.n, i);
+        for l in 0..self.p.layers {
+            x = self.layer(&x, l, threads);
+        }
+        x
+    }
+
+    /// Verify a claimed ticket that carries its piece (ADR 0016): first the cheap check that the claimed
+    /// piece hashes to the target (one SHA-256, so a header without work is rejected for the price of a
+    /// hash), then the recomputation of row `i` and the comparison with the claimed piece.
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_claim(
+        &self,
+        header_digest: &[u8; 32],
+        nonce: u64,
+        i: usize,
+        c: usize,
+        piece: &[i8],
+        bits: u32,
+        threads: usize,
+    ) -> bool {
+        let p = &self.p;
+        if i >= p.b || c >= p.n / p.w || piece.len() != p.w {
+            return false;
+        }
+        if crate::score_lead(&ticket_hash(piece, header_digest, nonce, i as u32, c as u32)) < bits {
+            return false;
+        }
+        let row = self.forward_row(&x0_seed(header_digest, nonce), i, threads);
+        row[c * p.w..(c + 1) * p.w] == *piece
+    }
+
+    /// Same verdict as [`verify_ticket`].
+    pub fn verify(&self, header_digest: &[u8; 32], nonce: u64, i: usize, c: usize, bits: u32, threads: usize) -> bool {
+        let p = &self.p;
+        if i >= p.b || c >= p.n / p.w {
+            return false;
+        }
+        let row = self.forward_row(&x0_seed(header_digest, nonce), i, threads);
+        let h = ticket_hash(&row[c * p.w..(c + 1) * p.w], header_digest, nonce, i as u32, c as u32);
+        crate::score_lead(&h) >= bits
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,6 +330,7 @@ mod tests {
         assert_eq!(requant(1 << 20, half), 127);
         assert_eq!(requant(-(1 << 20), half), -128);
         assert_eq!(default_mult(4096), 3542);
+        assert_eq!(default_mult(TNET_V1.n), TNET_V1.mult);
     }
 
     #[test]
@@ -228,6 +340,19 @@ mod tests {
         let x = x0_row(&x0_seed(&[2u8; 32], 5), p.n, 3);
         for t in [1, 2, 3, 7] {
             assert_eq!(layer_row_par(&x, &w[0], p.n, p.mult, t), layer_row(&x, &w[0], p.n, p.mult));
+        }
+    }
+
+    #[test]
+    fn epoch_verifier_matches_reference() {
+        let p = TnetParams { n: 128, b: 32, layers: 4, w: 32, mult: default_mult(128) };
+        let w = epoch_weights(&[9u8; 32], &p);
+        let v = EpochVerifier::new(&w, p);
+        let seed = x0_seed(&[1u8; 32], 3);
+        for i in [0, 5, 31] {
+            for t in [1, 3, 8] {
+                assert_eq!(v.forward_row(&seed, i, t), forward_row(&w, &p, &seed, i, 1));
+            }
         }
     }
 
@@ -264,6 +389,14 @@ mod tests {
                     let h = ticket_hash(&row[c * p.w..(c + 1) * p.w], &hd, nonce, i as u32, c as u32);
                     if crate::score_lead(&h) >= 6 {
                         assert!(verify_ticket(&w, &p, &hd, nonce, i, c, 6, 1));
+                        let ev = EpochVerifier::new(&w, p);
+                        let piece = &row[c * p.w..(c + 1) * p.w];
+                        assert!(ev.verify(&hd, nonce, i, c, 6, 2));
+                        assert!(ev.verify_claim(&hd, nonce, i, c, piece, 6, 2));
+                        let mut forged = piece.to_vec();
+                        forged[0] = forged[0].wrapping_add(1);
+                        assert!(!ev.verify_claim(&hd, nonce, i, c, &forged, 0, 2), "a wrong piece fails");
+                        assert!(!ev.verify_claim(&hd, nonce, i, c, piece, 40, 2));
                         let other = ticket_hash(&row[c * p.w..(c + 1) * p.w], &hd, nonce, i as u32 + 1, c as u32);
                         assert_ne!(other, h, "the position is bound into the ticket");
                         assert!(!verify_ticket(&w, &p, &hd, nonce, i, c, 40, 1));

@@ -33,3 +33,6 @@ At `n = 4096` the tensor share is 79–83% because of the separate requantizatio
 2. Analyse precomputation on fixed epoch weights (Four-Russians tables) and fixed-function hardware.
 3. Wire candidate T into the chain prototype (block fields, epoch seed from the chain, weights cache)
    and into CPPminer as the GPU miner.
+
+Follow-up: ADR 0016 (frozen as TNet v1; item 1 settled as a miner optimisation, item 2 bounded,
+item 3 handed to the coin repository).

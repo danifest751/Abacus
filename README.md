@@ -9,9 +9,11 @@ English is the primary repository language.
 
 ## Where this stands
 
-- **Candidate T** — the current PoW candidate (`spec/07`, ADR 0015): a header-seeded int8 network on
-  tensor cores whose output-row pieces are lottery tickets; a block is verified by recomputing one row
-  (31 ms on a CPU); 87.8% of a mining attempt runs on tensor cores (`docs/research/tnet-v1.md`).
+- **TNet v1 (candidate T)** — the outcome of the PoW research (`spec/07`, ADR 0015/0016): a
+  header-seeded int8 network on tensor cores whose output-row pieces are lottery tickets; a block is
+  verified by recomputing one row (11–17 ms on a laptop CPU); 88% of a mining attempt runs on tensor
+  cores; parameters and test vectors frozen (`docs/research/tnet-v2.md`, `spec/vectors/`). A coin built
+  on it lives in a separate repository; this repository stays the research record.
 - **Candidate A** — header-bound Freivalds matmul PoW (`spec/03`): sound and implementable. The
   instance comes from the block header, so there is no screening or reuse; Fiat–Shamir Freivalds
   verification errs with probability `<= 2^-63` per challenge; a full block check costs ~19 ms at
@@ -20,11 +22,11 @@ English is the primary repository language.
   ASIC-friendly; blocks carry `8 n^2` bytes. See **[the assessment](docs/ASSESSMENT.md)**.
 - **Candidate A'** (gathered operands, `spec/04`): bandwidth-bound only with a nonlinear large-slice
   gather, which makes it an Ethash-class bandwidth PoW (ADR 0011).
-- **Candidate A8** — int8 matmul on tensor cores (`spec/05`, ADR 0012), the current line of work: exact
-  products at ~78 TMAC/s on a CMP 50HX (~440x the Goldilocks kernel). Test 1 (ADR 0013): proving the
-  product succinctly on every attempt costs more than the product; two escapes remain untested.
+- **Candidate A8** — int8 matmul on tensor cores (`spec/05`, ADR 0012): exact products at ~78 TMAC/s
+  on a CMP 50HX (~440x the Goldilocks kernel). Test 1 (ADR 0013): proving the product succinctly on
+  every attempt costs more than the product; superseded by candidate T (escape E2).
 - **Candidates B (NTT/sumcheck) and C (MSM/KZG)**: verifiers only; weaker premises (ADR 0003).
-- **Tensor-throughput attestation** (`spec/06`, ADR 0014) — the active track: an interactive
+- **Tensor-throughput attestation** (`spec/06`, ADR 0014) — a side track: an interactive
   commit-then-sample proof that a GPU did a stated amount of exact int8 matmul work; certifies 40–49
   TMAC/s on a CMP 50HX with millisecond verification (`crates/abacus-attest`, `cuda/attest_prover.cu`).
 - Write-up of the PoW findings: [`docs/papers/tensor-pow-limits.md`](docs/papers/tensor-pow-limits.md).
@@ -52,15 +54,15 @@ Raw experiment output goes to an ignored `artifacts/`.
 ## Layout
 
 ```
-spec/        specifications (lab, sumcheck/NTT, candidate A, candidate A')
-reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset)
+spec/        specifications (lab, sumcheck/NTT, candidates A, A', A8, attestation, T) and TNet vectors
+reference/   Python reference (field, Freivalds, chain derivations, NTT, sumcheck, A' dataset, int8, TNet)
 crates/      Rust: abacus-verifier (verifiers, adapters, bench), abacus-chain (prototype, node, miner),
              abacus-attest (tensor-throughput attestation: verifier, reference prover)
 cuda/        GPU benches (Goldilocks and int8 matmul, NTT, gathered reads, A' attempt, candidate T)
              and the attestation prover
 scripts/     check gate, GPU suite, probes
 tests/       Python tests incl. Python/Rust differential and parity
-docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0015), research record,
+docs/        assessment, critical path, status, threat model, decisions (ADR 0001-0016), research record,
              papers
 ```
 
@@ -73,7 +75,7 @@ docs/        assessment, critical path, status, threat model, decisions (ADR 000
   [`spec/03`](spec/03-header-bound-freivalds-matmul-pow.md), [`spec/04`](spec/04-memory-hard-freivalds-matmul-pow.md),
   [`spec/05`](spec/05-int8-matmul-pow.md), [`spec/06`](spec/06-tensor-throughput-attestation.md),
   [`spec/07`](spec/07-deep-int8-network-pow.md).
-- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0015). Research record:
+- Decisions: [`docs/decisions/`](docs/decisions/) (ADR 0001–0016). Research record:
   [`docs/research/`](docs/research/README.md).
 
 ## Scope boundary

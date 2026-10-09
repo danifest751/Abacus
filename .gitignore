@@ -30,3 +30,6 @@ desktop.ini
 
 # codegraph index
 .codegraph/
+
+# local review archives
+*.zip

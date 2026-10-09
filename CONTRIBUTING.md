@@ -51,7 +51,7 @@ GPU measurements are reproduced with `bash scripts/gpu_suite.sh` on a CUDA host.
 
 ## Repository hygiene (avoid GitHub quotas)
 
-The repository stays **private** for now and must not consume GitHub metered features:
+The repository is public and does not depend on GitHub metered features:
 
 - **No GitHub Actions / workflows** (no CI minutes). Checks run locally via `python scripts/check.py`.
 - **No Git LFS** (no LFS storage/bandwidth). Keep binaries out of Git; `.gitignore` excludes CUDA

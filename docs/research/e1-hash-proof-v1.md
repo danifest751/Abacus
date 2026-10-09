@@ -11,7 +11,7 @@ a STARK that the hashed `C` equals `A * B`. Is the winner's proving time accepta
 
 - Prover: Plonky3 (`github.com/Plonky3/Plonky3`, commit `eab7f0e3`), example `prove_hash_binary`
   (binary-field STARK, GF(2^128) commitments, folding PCS, 100-bit target), built with
-  `--features parallel` and run with `RAYON_NUM_THREADS=8` on the `me4me` host (AMD Ryzen 5 5500,
+  `--features parallel` and run with `RAYON_NUM_THREADS=8` on the lab GPU host (AMD Ryzen 5 5500,
   31 GiB RAM). CPU proving only; no GPU prover was available.
 - Objectives: SHA-256 compressions and BLAKE3 compressions, trace length `2^16` (65,536 compressions =
   4 MiB of input). `2^18` is refused by the prover ("security level 100 exceeds the 98 bits the field

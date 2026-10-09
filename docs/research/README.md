@@ -6,19 +6,20 @@ its source hashes and environment.
 
 | Topic | Current note | Superseded / withdrawn |
 |---|---|---|
-| **Candidate T: deep requantized int8 network PoW (ADR 0015)** | [tnet-v1](tnet-v1.md) | — |
+| **Candidate T / TNet v1: frozen parameters, verifier, robustness (ADR 0016)** | [tnet-v2](tnet-v2.md) | — |
+| Candidate T: first test (ADR 0015) | [tnet-v1](tnet-v1.md) | — (v2 extends it; verification figures superseded by v2) |
 | int8 tensor-core matmul (candidate A8) | [int8-matmul-v1](int8-matmul-v1.md) | — |
 | A8 succinct-proof cost (test 1) | [a8-proof-cost-v1](a8-proof-cost-v1.md) | — |
 | A8 escape E1 (winner-only STARK of the hash) | [e1-hash-proof-v1](e1-hash-proof-v1.md) | — |
 | Prior art (Pearl, Nockchain, Aleo, PoNW, verifiable inference) | [prior-art-v1](prior-art-v1.md) | — |
 | Interactive tensor-throughput attestation (ADR 0014) | [attest-v1](attest-v1.md) | — |
-
-Write-up for external readers: [`docs/papers/tensor-pow-limits.md`](../papers/tensor-pow-limits.md).
 | GPU matmul, gathered reads, A' attempt folds | [gpu-suite-v1](gpu-suite-v1.md) | [gpu-baseline-v1](gpu-baseline-v1.md) (cold clock), [gather-bandwidth-v1](gather-bandwidth-v1.md) (64 KiB only, single launch), [attempt-rate-v1](attempt-rate-v1.md) (**withdrawn**: linear fold), [attempt-rate-v2](attempt-rate-v2.md) (attack vs naive kernel) |
 | A' balance (gather vs matmul) | [memhard-balance-v2](memhard-balance-v2.md) | [memhard-balance-v1](memhard-balance-v1.md) (bandwidth-only model, cold rate) |
 | Verifier cost | [verifier-throughput-v2](verifier-throughput-v2.md) | [verifier-throughput-v1](verifier-throughput-v1.md) (`k = 128` profile) |
 | Chain prototype, sync, pool | [chain-prototype-v2](chain-prototype-v2.md) | [local-prototype-v1](local-prototype-v1.md), [multi-node-testnet-v1](multi-node-testnet-v1.md) (encoding v1) |
 | GPU miner (CPPminer) | [cppminer-backend-v2](cppminer-backend-v2.md) | [cppminer-backend-v1](cppminer-backend-v1.md) (encoding v1, mislabelled A' table) |
+
+Write-up for external readers: [`docs/papers/tensor-pow-limits.md`](../papers/tensor-pow-limits.md).
 
 CPU probes (`scripts/`, outputs in `artifacts/`), re-run on 2026-10-09 with unchanged conclusions:
 

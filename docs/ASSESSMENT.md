@@ -107,6 +107,13 @@ tensor cores, 31 ms CPU verification, no cheaper ticket path found (`tnet-v1`). 
 claim — the best miner is general AI inference hardware — still needs the precomputation and
 fixed-function analyses of spec/07 §4.
 
+Frozen as TNet v1 (ADR 0016, `tnet-v2`): verification 11.5 ms on 8 CPU threads; one ±1 error after
+the first layer changes 55% of the final row, so approximate mining yields no tickets; table-based
+precomputation costs 4–12x the tensor-core path on the measured GPU and trades multipliers for
+≥128x weight storage in silicon (a bound, not a measurement). What it does *not* establish: ASIC
+resistance (an int8-GEMM chip is an inference chip, and its advantage over AI accelerators is
+unmeasured) or usefulness (the work is not anyone's inference).
+
 ## What would change the answer
 
 Pick one distinguishing property and test it; stop if none survives.

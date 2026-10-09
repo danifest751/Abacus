@@ -1,16 +1,20 @@
 # Research status
 
-Date: 2026-10-09. Phase: the primary PoW candidate is **candidate T** (ADR 0015, spec/07), a deep
-requantized int8 network with row-piece tickets; it passed its first test. Side track: interactive
-tensor-throughput attestation (ADR 0014). Earlier PoW findings: `docs/papers/tensor-pow-limits.md`.
+Date: 2026-10-09. Phase: the PoW research has concluded with **TNet v1** (candidate T frozen,
+ADR 0016, spec/07): a deep requantized int8 network with row-piece tickets, parameters and test
+vectors fixed. Node and miner work moves to a separate coin repository; Abacus remains the research
+record. Side track: interactive tensor-throughput attestation (ADR 0014). Earlier PoW findings:
+`docs/papers/tensor-pow-limits.md`.
 
 ## Results
 
 - **Candidate T (spec/07)**: per attempt `L` layers of int8 GEMM + fixed-point requantization with
   epoch weights; tickets are pieces of output rows; a block carries `(nonce, i, c)` and is verified by
-  recomputing one row. Measured (`tnet-v1`): 87.8% of an attempt on tensor cores at `n = 8192, L = 8`
-  (59 TMAC/s), CPU verification 31 ms (8 threads), single-row mining 42–45x more expensive per
-  ticket, fair lottery, GPU/Rust byte parity.
+  recomputing one row. Measured (`tnet-v1`, `tnet-v2`): 88.2% of an attempt on tensor cores at the
+  frozen `n = 8192, L = 8, w = 256` (57.5 TMAC/s), CPU verification 11.5 ms (8 threads) / 16.8 ms
+  (1 thread) with a SIMD build, single-row mining 42–45x more expensive per ticket, fair lottery,
+  GPU/Rust/Python byte parity, no approximate shortcut (one ±1 error reaches 55% of the final row);
+  precomputation bounded analytically (4–12x slower than tensor cores on the measured GPU).
 - **Candidate A (spec/03)** is a sound permissionless PoW at the construction level: header-derived
   instance (no screening, no reuse), Fiat–Shamir Freivalds verification with per-challenge error
   `<= 2^-63` (ADR 0009); a full block check takes ~19 ms at `n = 256` on one CPU core, about 1/5 of a
@@ -43,8 +47,9 @@ tensor-throughput attestation (ADR 0014). Earlier PoW findings: `docs/papers/ten
   median-time-past timestamps, greatest-work fork choice, optional A' one-word gather, pull sync with
   resource bounds, solo/pool protocol with per-miner accepted/stale/rejected accounting
   (`chain-prototype-v2`).
-- Parity: every consensus derivation is compared Python vs Rust (`tests/test_chain_parity.py`); CUDA
-  vs Rust is checked end to end by mining into the node.
+- Parity: every consensus derivation is compared Python vs Rust (`tests/test_chain_parity.py`,
+  `tests/test_tnet_parity.py`); CUDA vs Rust is checked end to end by mining into the node and, for
+  TNet, by recomputing GPU-found tickets; frozen vectors in `spec/vectors/`.
 - GPU benches (`cuda/`) and the suite runner `scripts/gpu_suite.sh` (warm, repeated, hashed); CPPminer
   backend on encoding v2 (`cppminer-backend-v2`).
 - Probes (`scripts/`): instance structure, work exponent, Freivalds forgery and soundness, A' balance,

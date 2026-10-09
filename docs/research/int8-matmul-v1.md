@@ -4,7 +4,7 @@ Date: 2026-10-09. Status: **current**. ADR 0012, spec/05.
 
 ## Method
 
-- Host `me4me`, CMP 50HX (sm_75), driver 610.43.03, CUDA 13.3, cuBLAS 13.6. During the run SM
+- Lab GPU host, CMP 50HX (sm_75), driver 610.43.03, CUDA 13.3, cuBLAS 13.6. During the run SM
   1950 MHz, memory 7000 MHz, 98–131 W, 56–59 °C.
 - `cuda/int8_matmul_bench.cu` (sha256 `8db4ce33…`), run by `scripts/gpu_suite.sh` (run 5; the script was
   afterwards changed only in a newline escape). 3 s warm-up, median of 7 CUDA-event timings.

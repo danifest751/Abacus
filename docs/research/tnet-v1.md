@@ -1,6 +1,7 @@
 # Candidate T v1 — deep requantized int8 network PoW: attempt cost, verification, ticket cost
 
-Date: 2026-10-09. Status: **current**. spec/07, ADR 0015.
+Date: 2026-10-09. Status: **current** for the GPU results; the CPU verification figures are
+superseded by the transposed SIMD verifier of `tnet-v2`. spec/07, ADR 0015.
 
 ## Setup
 
