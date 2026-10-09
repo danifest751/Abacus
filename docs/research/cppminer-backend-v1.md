@@ -52,6 +52,20 @@ CPPminer mined **53 blocks** into the node's chain in 6 s; every accepted block 
 `k`-challenge Freivalds check. A bug was found and fixed on the way: the client must expand `2*n*n`
 elements once and split into `A, B` (expanding twice produced `A == B`, so `C != A*B`).
 
+## GPU instance expansion
+
+`A, B` expansion moved off the host to a device SHA-256 (`seed_kernel`, `expand_kernel`), verified
+bit-identical to the host reference (`--selftest`). Rates on the CMP 50HX:
+
+| n | mock attempts/s | note |
+|---:|---:|---|
+| 64 | 1156 -> **5075** | host expand was the bound |
+| 128 | 1528 | |
+| 64 solo | 53 -> **63 blocks/6 s** | node accepts all |
+
+The remaining host cost is the **score hash** (SHA-256 over `n^2` elements per attempt), which bounds
+larger `n`; moving it to the GPU is the next step.
+
 ## Not implemented
 
 - **Pool mining**: only a single-node solo protocol exists (no share accounting, difficulty
