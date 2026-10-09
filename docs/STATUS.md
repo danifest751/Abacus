@@ -22,6 +22,9 @@ English is primary.
   (`docs/research/gather-bandwidth-v1.md`).
 - Candidate A' spec (memory-hard: epoch dataset + gathered operands), a dataset module
   (`reference/memhard_dataset.py`) and a balance probe (`docs/research/memhard-balance-v1.md`).
+- GPU attempt-rate bench (`cuda/attempt_bench.cu`): A' is memory-hard and bandwidth-bound at ~69-102
+  attempts/s on the CMP; effective per-entry gather bandwidth is 11.6-85 GB/s
+  (`docs/research/attempt-rate-v1.md`).
 - One local check command: `python scripts/check.py`.
 
 The ordinary check gate uses standard libraries; the Rust crate has no third-party dependencies.
