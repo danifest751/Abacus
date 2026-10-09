@@ -1,35 +1,29 @@
-//! Minimal local mine loop for candidate A. Mines a short chain and verifies it.
+//! Minimal local mine loop for candidate A. Mines a short chain (triggering a retarget) and verifies.
 //!
 //! Run: cargo run --release --quiet --bin abacus-mine [blocks]
 
-use abacus_chain::{mine, preheader, verify, Profile};
+use abacus_chain::{preheader, verify, Chain, Profile, TARGET_SPACING};
 use std::time::Instant;
 
 fn main() {
-    let blocks_wanted: u64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(5);
+    let wanted: u64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(20);
 
-    // Easy prototype target (first byte 0x10 -> ~1/16 attempts); small n/k for CPU speed.
-    let mut target = [0u8; 32];
-    target[0] = 0x10;
-    let profile = Profile { n: 8, k: 8, target };
-    let chain_id = [0xABu8; 32];
+    let profile = Profile { n: 8, k: 8, bits: 4 };
+    let mut chain = Chain::new(profile, [0xABu8; 32], 1);
 
-    let mut prev = [0u8; 32];
-    println!("{{\"profile\": {{\"n\": {}, \"k\": {}, \"target0\": {}}}, \"blocks\": [", profile.n, profile.k, target[0]);
-
-    for height in 0..blocks_wanted {
+    println!("{{\"profile\": {{\"n\": {}, \"k\": {}, \"bits\": {}}}, \"blocks\": [", profile.n, profile.k, profile.bits);
+    let mut ts = 0u64;
+    for i in 0..wanted {
+        ts += TARGET_SPACING;
         let t0 = Instant::now();
-        let (nonce, c, sc) = mine(&profile, &chain_id, 1, height, &prev, 0, 1_000_000).expect("mined");
+        let b = chain.mine_next(ts, 10_000_000).expect("mined");
         let dt = t0.elapsed().as_secs_f64();
-        let ph = preheader(&chain_id, 1, height, &prev, nonce);
-        let ok = verify(&profile, &ph, &c, &sc);
+        let ph = preheader(&chain.chain_id, chain.version, b.height, &b.prev, b.timestamp, b.nonce);
+        let ok = verify(&Profile { n: profile.n, k: profile.k, bits: b.bits }, &ph, &b.c, &b.score);
         println!(
-            "  {{\"height\": {height}, \"nonce\": {nonce}, \"attempts\": {}, \"seconds\": {dt:.4}, \"verified\": {ok}}}{}",
-            nonce + 1,
-            if height + 1 == blocks_wanted { "" } else { "," }
+            "  {{\"height\": {}, \"nonce\": {}, \"bits\": {}, \"seconds\": {dt:.4}, \"verified\": {ok}}}{}",
+            b.height, b.nonce, b.bits, if i + 1 == wanted { "" } else { "," }
         );
-        // next prev = block id (recompute here; the chain module stores it, the loop keeps it simple)
-        prev = abacus_chain::block_id(&ph, &c);
     }
     println!("]}}");
 }
