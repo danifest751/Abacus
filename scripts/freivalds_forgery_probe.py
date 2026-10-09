@@ -28,17 +28,23 @@ from reference.freivalds import (  # noqa: E402
 )
 
 
-def fs_challenges(C, n, k, domain=b"abacus/check"):
+def fs_challenges(C, n, k, preheader=b"", domain=b"abacus/check"):
+    """k challenge vectors, Fiat-Shamir bound to the committed C.
+
+    Hash C **once** to a root, then expand the k*n field elements from the root. Hashing the whole
+    C per element would make verification O(k*n^3) bytes and defeat the purpose (ADR 0006).
+    """
     cbytes = b"".join(int(x).to_bytes(8, "little") for x in C)
-    out = []
-    for i in range(k):
-        ib = i.to_bytes(4, "little")
-        vec = []
-        for j in range(n):
-            h = hashlib.sha256(domain + cbytes + ib + j.to_bytes(4, "little")).digest()
-            vec.append(int.from_bytes(h[:8], "little") % P)
-        out.append(vec)
-    return out
+    root = hashlib.sha256(domain + preheader + cbytes).digest()
+    vals = []
+    counter = 0
+    need = k * n
+    while len(vals) < need:
+        h = hashlib.sha256(root + counter.to_bytes(4, "little")).digest()
+        for off in (0, 8, 16, 24):
+            vals.append(int.from_bytes(h[off:off + 8], "little") % P)
+        counter += 1
+    return [vals[i * n:(i + 1) * n] for i in range(k)]
 
 
 def forge(A, B, n, r, rng):

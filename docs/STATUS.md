@@ -15,7 +15,8 @@ English is primary.
 - Goldilocks field (`P = 2**64 - 2**32 + 1`), NTT and the sumcheck protocol, in both Python and
   Rust, with primitivity, round-trip/linearity and completeness/soundness tests.
 - Candidate A assessment and work model (ADR 0005), the `k`-challenge Fiat-Shamir Freivalds fix
-  (ADR 0004), and falsifier probes (instance structure, omega, Freivalds forgery).
+  (ADR 0004), and the commit-then-expand derivation + `n > 2k` constraint (ADR 0006;
+  `abacus-verify-bench`). Falsifier probes: instance structure, omega, Freivalds forgery.
 - A toy CPU mine-and-verify loop (`scripts/mine_sim.py`).
 - One local check command: `python scripts/check.py`.
 

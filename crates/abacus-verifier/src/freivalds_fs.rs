@@ -12,23 +12,28 @@ pub fn fs_challenges(c: &[u64], n: usize, k: usize) -> Vec<Vec<u64>> {
     for &x in c {
         cb.extend_from_slice(&x.to_le_bytes());
     }
-    let mut out = Vec::with_capacity(k);
-    for i in 0..k {
-        let mut v = Vec::with_capacity(n);
-        for j in 0..n {
-            let mut buf: Vec<u8> = Vec::new();
-            buf.extend_from_slice(b"abacus/check");
-            buf.extend_from_slice(&cb);
-            buf.extend_from_slice(&(i as u32).to_le_bytes());
-            buf.extend_from_slice(&(j as u32).to_le_bytes());
-            let h = sha256(&buf);
+    // Hash C once to a root, then expand k*n field elements (ADR 0006).
+    let mut root_in = Vec::with_capacity(12 + cb.len());
+    root_in.extend_from_slice(b"abacus/check");
+    root_in.extend_from_slice(&cb);
+    let root = sha256(&root_in);
+
+    let need = k * n;
+    let mut vals: Vec<u64> = Vec::with_capacity(need);
+    let mut counter: u32 = 0;
+    while vals.len() < need {
+        let mut buf = Vec::with_capacity(36);
+        buf.extend_from_slice(&root);
+        buf.extend_from_slice(&counter.to_le_bytes());
+        let h = sha256(&buf);
+        for off in [0usize, 8, 16, 24] {
             let mut e = [0u8; 8];
-            e.copy_from_slice(&h[0..8]);
-            v.push(u64::from_le_bytes(e) % P);
+            e.copy_from_slice(&h[off..off + 8]);
+            vals.push(u64::from_le_bytes(e) % P);
         }
-        out.push(v);
+        counter += 1;
     }
-    out
+    (0..k).map(|i| vals[i * n..(i + 1) * n].to_vec()).collect()
 }
 
 /// Verify `C == A*B` with `k` Fiat–Shamir-bound Freivalds challenges.
