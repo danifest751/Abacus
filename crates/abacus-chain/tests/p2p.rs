@@ -1,6 +1,5 @@
 use abacus_chain::{p2p, Chain, Profile};
 use std::net::TcpListener;
-
 fn profile() -> Profile {
     Profile { n: 4, k: 4, bits: 5 }
 }
@@ -9,8 +8,12 @@ fn serve_once(blocks: Vec<abacus_chain::Block>) -> std::net::SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     std::thread::spawn(move || {
-        if let Ok((s, _)) = listener.accept() {
-            p2p::serve_conn(s, &blocks);
+        if let Ok((mut s, _)) = listener.accept() {
+            // Consume the client's SYNC hello, then serve the snapshot.
+            let mut r = std::io::BufReader::new(s.try_clone().unwrap());
+            let mut hello = String::new();
+            let _ = std::io::BufRead::read_line(&mut r, &mut hello);
+            p2p::serve_conn(&mut s, &blocks);
         }
     });
     addr
@@ -101,4 +104,41 @@ fn sync_memory_hard_chain_with_same_dataset() {
     let n = p2p::sync_from(&mut b, &addr.to_string()).unwrap();
     assert!(n >= 2);
     assert_eq!(b.tip(), a.tip());
+}
+
+#[test]
+fn solo_job_submit_accepts_and_appends() {
+    use abacus_chain::mine;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpStream;
+    use std::sync::{Arc, Mutex};
+
+    let p = Profile { n: 4, k: 4, bits: 6 };
+    let chain = Chain::new(p, [8u8; 32], 1);
+    let shared = Arc::new(Mutex::new(chain));
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let s2 = Arc::clone(&shared);
+    std::thread::spawn(move || p2p::serve_multi(listener, s2));
+
+    let stream = TcpStream::connect(addr).unwrap();
+    let mut w = stream.try_clone().unwrap();
+    let mut r = BufReader::new(stream);
+
+    writeln!(w, "JOB").unwrap();
+    w.flush().unwrap();
+    let mut line = String::new();
+    r.read_line(&mut line).unwrap();
+    let job = p2p::decode_job(line.trim_end().strip_prefix("JOB ").unwrap()).unwrap();
+
+    let cp = Profile { n: 4, k: 4, bits: job.bits };
+    let (nonce, c, _sc) = mine(&cp, &job.chain_id, job.version, job.height, &job.prev, job.timestamp, 1_000_000, None)
+        .expect("mined a job");
+    writeln!(w, "SUB {}", p2p::encode_sub(nonce, job.timestamp, &c)).unwrap();
+    w.flush().unwrap();
+
+    let mut reply = String::new();
+    r.read_line(&mut reply).unwrap();
+    assert!(reply.trim_end().starts_with("OK"), "reply was {reply:?}");
+    assert_eq!(shared.lock().unwrap().height(), 1);
 }

@@ -26,8 +26,9 @@ fn main() {
     let bits: u32 = arg("--bits", "6").parse().unwrap();
     let serve_s: u64 = arg("--serve", "0").parse().unwrap();
     let dataset_n: usize = arg("--dataset", "0").parse().unwrap();
+    let n: usize = arg("--n", "8").parse().unwrap();
 
-    let profile = Profile { n: 8, k: 8, bits };
+    let profile = Profile { n, k: 8, bits };
     let chain_id = [0xABu8; 32];
     let mut chain = Chain::new(profile, chain_id, 1);
     if dataset_n > 0 {
@@ -44,12 +45,7 @@ fn main() {
     let shared = Arc::new(Mutex::new(chain));
     let server = Arc::clone(&shared);
     let listener = TcpListener::bind(("127.0.0.1", listen)).expect("listen");
-    std::thread::spawn(move || {
-        p2p::serve_loop(listener, move || {
-            let c = server.lock().unwrap();
-            c.blocks.clone()
-        })
-    });
+    std::thread::spawn(move || p2p::serve_multi(listener, server));
 
     for i in 0..mine_n {
         let ts = (i + 1) * 10;
