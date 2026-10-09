@@ -9,8 +9,10 @@
 //! several vectors). It tests the *result*, not that a miner did the work — that gap is exactly
 //! what the research studies.
 
+pub mod freivalds_fs;
 pub mod goldilocks;
 pub mod ntt;
+pub mod sha256;
 pub mod sumcheck;
 
 /// The field modulus of the matmul laboratory: `2^61 - 1`, prime.

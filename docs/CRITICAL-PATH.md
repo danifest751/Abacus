@@ -75,3 +75,17 @@ A written, defensible answer to §1, backed by reproducible evidence and an exte
 - Threats: `docs/THREAT-MODEL.md` (linearity, precompute, reuse).
 - Status: `docs/STATUS.md`.
 - Use "experimental Verifiable Algebra PoW"; make no security or usefulness claims.
+
+## 8. Status (2026-10-09)
+
+- **Candidate A falsifiers resolved** (see ADR 0004, ADR 0005): screening and decomposition are
+  excluded by header-derived uniform `A, B`; the single-challenge forgery is fixed by `k`
+  Fiat–Shamir-bound Freivalds challenges; algorithmic speedup is accounted as `n^omega`. Recorded
+  downsides: ASIC-friendly, not useful.
+- **D2/D3/D4 done on candidate A**; probes: `instance_probe.py`, `omega_probe.py`,
+  `freivalds_forgery_probe.py`. A toy CPU mine+verify loop works (`mine_sim.py`).
+- **GPU baseline (E5 start)**: Goldilocks matmul GPU vs CPU on the CMP 50HX (`gpu-baseline-v1.md`);
+  the GPU advantage is a ~constant factor, i.e. **work is portable**, not superlinear.
+- **Next**: (1) Rust parity for the Fiat–Shamir Freivalds binding; (2) choose a parameter profile
+  `(n, D, k)` and measure verifier throughput; (3) matched CPU/GPU mine-scope (D5) with the parity
+  kernel.
