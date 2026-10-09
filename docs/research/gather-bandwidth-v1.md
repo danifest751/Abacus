@@ -1,39 +1,36 @@
-# Gathered-read bandwidth v1 — candidate A' premise
+# Gathered-read bandwidth v1 — candidate A' premise (corrected, warm)
 
-Date: 2026-10-09. Bench: `cuda/gather_bench.cu` on the CMP 50HX (sm_75). Random 8/64 KiB segment
-reads from a large buffer versus a sequential streaming read. Purpose: check whether a memory-hard,
-header-random **gather** layer (ADR 0007) can shift the bottleneck from multiply throughput to memory
-access pattern.
+Date: 2026-10-09. Bench: `cuda/gather_bench.cu` on the CMP 50HX (sm_75). Random 64 KiB segment reads
+from a 256 MiB buffer versus a sequential streaming read.
 
-## Results
+**Correction.** A first (cold) run reported gather ~29 GB/s and sequential ~21 GB/s, from which an
+earlier draft wrongly concluded that gathered access is ~6% of sequential bandwidth. Re-running gave
+stable warm numbers: the cold runs were a **clock-ramp artifact** of the CMP idle governor.
 
-| dataset | segment | gather GB/s | sequential GB/s | gather / seq |
-|---:|---:|---:|---:|---:|
-| 256 MiB | 8 KiB | 22.1 | 21.5 | 1.03 |
-| 512 MiB | 8 KiB | 22.0 | 22.0 | 1.00 |
-| 256 MiB | 64 KiB | 28.9 | 469.6 | 0.06 |
+## Warm results (256 MiB dataset, 64 KiB segments, four runs)
+
+| run | gather GB/s | sequential GB/s | gather / seq |
+|---:|---:|---:|---:|
+| 1 (cold) | 25.0 | 21.5 | 1.16 |
+| 2 | 415.8 | 474.7 | 0.876 |
+| 3 | 416.1 | 477.0 | 0.872 |
+| 4 | 413.8 | 473.6 | 0.874 |
 
 ## Findings
 
-- **Gathered random reads are far slower than sequential streaming**: at 64 KiB segments the gather
-  reaches ~29 GB/s versus ~470 GB/s for a contiguous read (≈6%). The gathered pattern is
-  **access-pattern bound**, not raw-bandwidth bound — exactly the property a memory-hard layer wants,
-  because an ASIC then needs the same random-access capability, not just wide DRAM.
-- The 8 KiB rows show both gather and sequential near ~22 GB/s; those runs were early (cold GPU). The
-  64 KiB run (later, warmer) shows the real contrast. **Clock state dominates the absolute numbers**:
-  the idle governor ramps the CMP under load, so a locked-clock or longer warm-up run is needed for
-  trustworthy absolute bandwidth.
-
-## Caveat and next
-
-- Re-run with a warm-up pass and (if possible) locked clocks before quoting absolute GB/s.
-- This only establishes that a gathered layer is pattern-bound; the full candidate A' must still be
-  designed (dataset construction, index derivation, how `A,B` are assembled) and its falsifiers tested
-  (monotone work in bytes fetched; no cross-attempt caching; verifier dataset cost).
+- Warm, **large-segment (64 KiB) gathered reads reach ~416 GB/s, ~87% of the ~475 GB/s sequential
+  rate** — the gather is efficient, not pattern-starved, at this segment size.
+- The cold run under-reported both by ~20x; **clock state dominates the absolute numbers**. Definite
+  numbers need a locked clock or a long warm-up.
+- This inverts the memory-hard intuition: because gathered bandwidth is high, a memory-hard layer needs
+  a **very large** per-attempt gather (GB-scale) to dominate the matmul — see
+  `memhard-balance-v1.md`. Small gathers are compute-dominated.
+- Smaller segment sizes (8 KiB) were not measured warm; they may be less efficient and are the next
+  check.
 
 ## Reproduce
 
 ```
 nvcc -O3 -arch=sm_75 cuda/gather_bench.cu -o gather_bench
-./gather_bench 256 64 64
+./gather_bench 256 64 64   # run several times; take the warm runs
 ```

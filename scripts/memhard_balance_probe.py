@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import os
 
-BW_G = 29e9          # gathered bytes/s (measured)
+BW_G = 416e9          # gathered bytes/s (measured WARM, 64 KiB segments; cold runs under-report)
 RATE_FIELD = 44e9    # Goldilocks MAC/s (measured naive)
 RATE_INT8 = 69e9     # int8 MAC/s (CPPMiner CMP reference)
 BLOCK = 32           # one dataset block per A entry in the naive design

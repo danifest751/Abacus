@@ -7,17 +7,19 @@ Status: accepted correction. Revises the A' balance claim (ADR 0007, spec/04).
 An earlier balance estimate for candidate A' assumed a `1e12` MAC/s tensor-core matmul, concluding the
 gather dominates in a window (`memhard-balance-v1.md`). That assumption is invalid: the Freivalds
 field is Goldilocks / `2^61-1`, i.e. **64-bit modular arithmetic**, to which **int8 tensor cores do not
-apply**. With grounded rates (CMP 50HX: field matmul ~44 GMAC/s, int8 ~69 GMAC/s, gathered bandwidth
-~29 GB/s), the matmul **dominates** when each `A` entry gathers one 32-byte block
-(gather/matmul 0.05-0.19). The memory layer is cosmetic.
+apply**. With grounded rates (CMP 50HX: field matmul ~44 GMAC/s, int8 ~69 GMAC/s, **warm** gathered
+bandwidth ~416 GB/s), the matmul **dominates** when each `A` entry gathers one 32-byte block
+(gather/matmul ≤ 0.013). The memory layer is cosmetic.
 
 ## Decision
 
 1. **Withdraw the "memory-hard window" claim.** A' as first sketched (one gathered block per entry) is
    **compute-bound**, not memory-hard, on the CMP for both the field and int8 rates.
-2. To make the gather dominant, the per-attempt gather must satisfy `G > n^3 * BW / rate`
-   (e.g. ~56-88 MB at `n=512`, ~710 MB at `n=1024` for the field). That is Tenero-scale and makes the
-   PoW **bandwidth-bound and slow** (a 56 MB gather is ~2 ms at 29 GB/s).
+2. To make the gather dominant, the per-attempt gather must satisfy `G > n^3 * BW / rate`: with the
+   **warm** bandwidth (~416 GB/s) this is ~159 MB at `n=256`, ~1.3 GB at `n=512`, ~10 GB at `n=1024`
+   (field); ~101 MB / 809 MB / 6.5 GB (int8). That is a **GB-scale** gather reading most of a
+   multi-GB dataset, and it makes the PoW genuinely **bandwidth-bound** (at 416 GB/s, ~3 ms per
+   attempt at `n=512`, ~24 ms at `n=1024`).
 3. Two redesign paths, to be evaluated before any further memory-hard claim:
    - **(i) Large-slice gather** (Tenero-style) with the field matmul: gather tens of MiB per attempt so
      the read pattern, not the multiplies, dominates.
