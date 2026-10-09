@@ -23,8 +23,8 @@ English is primary.
 - A **multi-node P2P prototype** (`p2p.rs`, `bin/abacus-node.rs`): pull sync, greatest-work adoption,
   reorg rollback; a 3-process demo converges (`docs/research/multi-node-testnet-v1.md`), the E6 gate.
 - A **CPPminer backend** (`--algo abacus`, branch `feat/abacus-backend` in `danifest751/CPPminer`):
-  CUDA mock at ~1156 attempts/s (n=64) on the CMP; encoding matches the prototype
-  (`docs/research/cppminer-backend-v1.md`).
+  CUDA mock, solo mining (JOB/SUB into `abacus-node`) and a candidate A' memory-hard mock
+  (`--dataset`); encoding matches the prototype (`docs/research/cppminer-backend-v1.md`).
 - ASIC posture and the memory-hard candidate A' (ADR 0007); gather-bandwidth probe on the CMP
   (`docs/research/gather-bandwidth-v1.md`).
 - Candidate A' spec (memory-hard: epoch dataset + gathered operands), a dataset module
