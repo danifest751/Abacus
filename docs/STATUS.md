@@ -19,9 +19,15 @@ English is primary.
 The ordinary check gate uses standard libraries; the Rust crate has no third-party dependencies.
 No GPU job, paid CI or GitHub Actions. Experiments will write to an ignored `artifacts/`.
 
+## GPU
+
+- `cuda/goldilocks_matmul_bench.cu` — Goldilocks matmul throughput baseline (CPU vs GPU), measured on
+  the CMP 50HX (sm_75): GPU ~415x naive CPU at n=512, ~44 GMAC/s (naive tiled kernel). See
+  `docs/research/gpu-baseline-v1.md`. This is a **baseline**, not a miner.
+
 ## Not implemented (by scope)
 
-- No miner of any kind (CPU or GPU), no work model, no difficulty, no chain, no network, no coin.
+- No miner, no work model, no difficulty, no chain, no network, no coin.
 - No external cryptographic review yet.
 
 ## Next
