@@ -26,7 +26,7 @@ code where security, consensus or funds depend on it.
 ## How to report
 
 - Preferred: open a **private** security advisory via GitHub
-  (`Security` -> `Report a vulnerability`) on `danifest751/Abacus`.
+  (`Security` -> `Report a vulnerability`) on `requant-network/Abacus`.
 - Alternatively open a regular issue if the finding is not sensitive.
 - Include: affected file/commit, minimal reproduction, expected vs observed, and any raw evidence.
 
