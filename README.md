@@ -14,7 +14,7 @@ English is the primary repository language.
   verified by recomputing one row (11–17 ms on a laptop CPU); 88% of a mining attempt runs on tensor
   cores; parameters and test vectors frozen (`docs/research/tnet-v2.md`, `spec/vectors/`), measured on
   Turing and Ampere GPUs. The coin built on it is **Requant**
-  ([`danifest751/requant`](https://github.com/danifest751/requant)); this repository stays the research
+  ([`requant-network/requant`](https://github.com/requant-network/requant)); this repository stays the research
   record.
 - **Candidate A** — header-bound Freivalds matmul PoW (`spec/03`): sound and implementable. The
   instance comes from the block header, so there is no screening or reuse; Fiat–Shamir Freivalds
